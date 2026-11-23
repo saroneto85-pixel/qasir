@@ -72,3 +72,69 @@ body{background:var(--bg);color:var(--text)}header,.logo{background:var(--primar
 
 .bottom-transaction{display:none}@media(max-width:560px){.bottom-transaction{display:block;position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);width:min(84%,380px);z-index:10;padding:17px;font-size:17px;border-radius:18px;border:2px solid var(--accent);box-shadow:0 8px 24px #0c473b40}}
 .menu-icon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.dashboard-menu-card:focus-visible{outline:3px solid #f3c846;outline-offset:2px}
+
+/* ---- Pengeluaran 2.0.1 ---- */
+[hidden]{display:none!important}
+.exp-tabs{display:flex;gap:8px;margin:0 0 14px;overflow:auto}
+.exp-tabs .tab{flex:1;min-width:max-content;padding:11px 14px;font-weight:650}
+.exp-filters{align-items:end;gap:10px;padding:12px 17px}
+.exp-filters label{margin:0;flex:1}
+.exp-filters .outline{white-space:nowrap}
+.exp-total{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 9px 2px;color:var(--muted);font-size:13px}.exp-total b{color:var(--primary);font-size:16px}
+.exp-stats{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.exp-stats article.hl{background:#fffcf0;border-color:var(--accent)}
+.danger-link{color:#b42318}
+.master-expense-row{border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-top:10px}
+.mrow-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mrow-head b{flex:1;min-width:90px}
+.group-select{width:auto;padding:6px 8px;font-size:12px}
+.mitems{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{background:#f1f6f1;border-radius:20px;padding:4px 10px;font-size:12px}
+#expenseMasterDialog{max-height:calc(100dvh - 24px);overflow:auto}
+@media(max-width:560px){.exp-filters{flex-wrap:wrap}.exp-filters label{min-width:44%}.exp-stats{grid-template-columns:1fr 1fr}.exp-tabs .tab{padding:10px 8px;font-size:12px}}
+
+/* ---- 2.0.2 polish: kontras header + modul Pengeluaran profesional ---- */
+header .brand b{color:#fff}header .brand small{color:#cfeedd}header .head-right,header #onlineState{color:#bff0d2}
+.exp-actions{flex-wrap:nowrap}
+.exp-tabs{background:#e6efe8;border-radius:14px;padding:4px;gap:4px;margin-bottom:14px}
+.exp-tabs .tab{border:0;background:transparent;border-radius:11px;color:#41564b;padding:10px 12px}
+.exp-tabs .tab.active{background:#fff;color:var(--primary);box-shadow:0 1px 5px #173f2d26;border:0}
+.exp-filters{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-bottom:14px}
+.exp-filters label{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.exp-filters .outline{height:42px;white-space:nowrap}
+.exp-panel{padding:0;overflow:hidden}.exp-panel>.panel-head{padding:16px 18px 6px}.exp-panel>.panel-head h2{margin:0}
+.exp-panel #expenseTable,.exp-panel #employeeTable,.exp-panel #expenseReportPay{padding:6px 18px 16px}
+.exp-desktop table{border-collapse:separate;border-spacing:0}.exp-desktop th{position:sticky;top:0;text-transform:uppercase;font-size:10.5px;letter-spacing:.05em}
+.exp-desktop td{vertical-align:middle;white-space:normal}.exp-desktop td small{display:block;color:var(--muted);margin-top:2px;max-width:220px}
+.exp-desktop .num{text-align:right;white-space:nowrap}.exp-desktop th:nth-child(4),.exp-desktop th:nth-child(5),.exp-desktop th:nth-child(6){text-align:right}
+.exp-desktop .act{white-space:nowrap;text-align:right}.exp-desktop .act .link{padding:4px 8px}
+.exp-desktop tbody tr:hover{background:#f6faf6}
+.exp-cards{display:none}
+.gbadge{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700}
+.g-bahan{background:#e3f4e8;color:#17634f}.g-oper{background:#fdf1c8;color:#7a5d00}.g-gaji{background:#e1ecfa;color:#1f4e8c}
+.exp-total{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:13px 16px;background:#f1f7f2;border-radius:12px}.exp-total span{color:var(--muted)}.exp-total b{color:var(--primary);font-size:17px}
+.empty-state{display:grid;gap:6px;text-align:center;padding:40px 18px;color:var(--muted)}.empty-state b{color:var(--text);font-size:15px}
+.exp-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.exp-stats article{border-top:0;border-left:5px solid var(--accent);padding:15px 16px}
+.exp-stats article.hero{grid-column:1/-1;background:linear-gradient(135deg,#17634f,#0d7860);color:#fff;border:0;border-bottom:4px solid var(--accent);padding:20px}
+.exp-stats article.hero small,.exp-stats article.hero span{color:#d6f1e1}.exp-stats article.hero strong{font-size:30px}
+.exp-stats .c-bahan{border-left-color:#2e9e6a}.exp-stats .c-oper{border-left-color:#e0b020}.exp-stats .c-gaji{border-left-color:#3d7bd1}
+.exp-stats .c-hpp{border-left-color:#17634f;background:#f3faf5;box-shadow:inset 0 0 0 1px #cfe8d8}
+.pay-row{padding:12px 0;border-bottom:1px solid #edf0ed}.pay-row:last-child{border-bottom:0}
+.pay-top{display:flex;align-items:baseline;gap:10px}.pay-top b{flex:1}.pay-top span{color:var(--muted);font-size:12px}.pay-top strong{font-size:15px}
+.pay-bar{height:8px;background:#e8efe9;border-radius:8px;margin:8px 0 4px;overflow:hidden}.pay-bar i{display:block;height:100%;background:linear-gradient(90deg,#17634f,#2fb67e);border-radius:8px}
+.exp-card{border:1px solid var(--line);border-radius:16px;padding:13px 14px;margin-bottom:10px;background:#fff;box-shadow:0 1px 6px #173f2d0d}
+.exp-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.exp-card-top b{font-size:14px}.exp-card-top small{margin-top:2px}.exp-card-top strong{color:var(--primary);white-space:nowrap}
+.exp-card-meta,.emp-meta{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:9px;font-size:12px;color:#44584d;align-items:center}
+.exp-card-meta .gbadge{margin:0}.exp-card-meta .pay{background:#f1f4f1;border-radius:20px;padding:2px 8px}
+.exp-card p{margin:8px 0 0;font-size:12px;color:var(--muted)}
+.exp-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.exp-card-actions .outline{padding:9px;font-size:13px}
+@media(max-width:850px){.exp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.exp-desktop{display:none}.exp-cards{display:block}}
+@media(max-width:560px){
+ #expenses .page-head{flex-direction:column;align-items:stretch;gap:12px}
+ .exp-actions{display:grid!important;grid-template-columns:1fr 1.4fr;gap:8px}.exp-actions .btn,.exp-actions .outline{padding:12px 8px;font-size:13px;width:100%}
+ .exp-filters{grid-template-columns:1fr 1fr}.exp-filters .outline{grid-column:1/-1;height:40px}
+ .exp-panel #expenseTable,.exp-panel #employeeTable,.exp-panel #expenseReportPay{padding:6px 12px 14px}
+ .exp-stats article.hero strong{font-size:26px}.exp-stats strong{font-size:17px}
+ #expPane-staff .panel-head{flex-direction:column;align-items:stretch}#expPane-staff .panel-head .btn{width:100%;margin-top:6px}
+}
