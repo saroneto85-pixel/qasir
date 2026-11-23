@@ -40,3 +40,8 @@ Workflow `.github/workflows/build-android.yml` menjalankan langkah di atas dan m
 
 ## Catatan verifikasi
 JavaScript telah diperiksa dengan `node --check`, dan workflow YAML berhasil diparse. Build Gradle penuh belum dijalankan di lingkungan penyusunan ZIP ini; lakukan build melalui GitHub Actions dan uji kamera, Bluetooth, PDF share, serta SQLite pada HP fisik sebelum distribusi.
+
+
+## Pembaruan v1.3.3
+
+Lihat `CHANGELOG-1.3.3-PERUBAHAN-MENU.md`. Capacitor menggunakan `capacitor.config.json`.

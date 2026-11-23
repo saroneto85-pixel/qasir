@@ -13,14 +13,12 @@
 <nav>
 <div class="nav-caption first">OPERASIONAL</div>
 <button data-page="dashboard" class="nav active">▦ <span>Dashboard</span></button>
-<button data-page="tables" class="nav">⌸ <span>Meja &amp; Pesanan</span></button>
-<button data-page="kitchen" class="nav">♨ <span>Dapur</span></button>
 <button data-page="transaction" class="nav primary">＋ <span>Transaksi Baru</span></button>
 <button data-page="history" class="nav">▤ <span>Riwayat</span></button>
 <div class="nav-caption">DATA</div>
 <button data-page="products" class="nav">▣ <span>Kelola Produk</span></button>
 <button data-page="customers" class="nav">♙ <span>Pelanggan</span></button>
-<button data-page="employees" class="nav">♟ <span>Karyawan</span></button>
+
 <div class="nav-caption">KEUANGAN</div>
 <button data-page="expenses" class="nav">↘ <span>Pengeluaran</span></button>
 <button data-page="reports" class="nav">▤ <span>Laporan</span></button>
@@ -34,19 +32,17 @@
 <section class="dashboard-menu" aria-label="Menu utama aplikasi">
 <div class="dashboard-menu-head"><h2>Menu Utama</h2><span>Kelola usaha Anda</span></div>
 <div class="dashboard-menu-grid">
-<button class="dashboard-menu-card dm-wide dm-main" onclick="showPage('tables')"><span class="menu-icon">⌸</span><b>Meja &amp; Pesanan</b><small>Buka, kirim ke dapur &amp; bayar</small></button>
 <button class="dashboard-menu-card dm-wide dashboard-menu-sale" onclick="showPage('transaction')"><span class="menu-icon">＋</span><b>Transaksi Baru</b><small>Penjualan langsung tanpa meja</small></button>
-<button class="dashboard-menu-card dm-dapur" onclick="showPage('kitchen')"><span class="menu-icon">♨</span><b>Dapur</b><small>Antrian masak</small></button>
 <button class="dashboard-menu-card " onclick="showPage('history')"><span class="menu-icon">▤</span><b>Riwayat</b><small>Transaksi tersimpan</small></button>
 <button class="dashboard-menu-card " onclick="showPage('products')"><span class="menu-icon">▣</span><b>Produk</b><small>Produk &amp; kategori</small></button>
 <button class="dashboard-menu-card " onclick="showPage('customers')"><span class="menu-icon">♙</span><b>Pelanggan</b><small>Data pelanggan</small></button>
-<button class="dashboard-menu-card " onclick="showPage('employees')"><span class="menu-icon">♟</span><b>Karyawan</b><small>Data &amp; gaji</small></button>
+
 <button class="dashboard-menu-card " onclick="showPage('expenses')"><span class="menu-icon">↘</span><b>Pengeluaran</b><small>Biaya usaha</small></button>
 <button class="dashboard-menu-card " onclick="showPage('reports')"><span class="menu-icon">▤</span><b>Laporan</b><small>Analisis usaha</small></button>
 <button class="dashboard-menu-card " onclick="showPage('settings')"><span class="menu-icon">⚙</span><b>Pengaturan</b><small>Profil &amp; keamanan</small></button>
 </div></section>
-<div class="stats"><article><small>Penjualan hari ini</small><strong id="todaySales">Rp0</strong><span id="todayCount">0 transaksi</span></article><article><small>Transaksi hari ini</small><strong id="todayTx">0</strong><span>Semua tipe transaksi</span></article><article><small>Pengeluaran hari ini</small><strong id="todayExpense">Rp0</strong><span>Biaya tercatat</span></article><article><small>Keuntungan hari ini</small><strong id="todayProfit">Rp0</strong><span>Penjualan − HPP − pengeluaran</span></article><article><small>Produk aktif</small><strong id="productCount">0</strong><span>Item katalog</span></article></div>
-<p class="muted small app-ver" id="appVersion">KASIR v1.3.2</p>
+<div class="stats"><article><small>Penjualan hari ini</small><strong id="todaySales">Rp0</strong><span id="todayCount">0 transaksi</span></article><article><small>Transaksi hari ini</small><strong id="todayTx">0</strong><span>Semua tipe transaksi</span></article><article><small>Pengeluaran hari ini</small><strong id="todayExpense">Rp0</strong><span>Biaya tercatat</span></article><article id="profitCard" style="display:none"><small>Keuntungan hari ini</small><strong id="todayProfit">Rp0</strong><span>Penjualan − HPP − pengeluaran</span></article><article id="profitRevealCard"><small>Informasi keuntungan</small><button class="outline full" id="revealProfit">🔒 Tampilkan keuntungan (PIN)</button></article></div>
+<p class="muted small app-ver" id="appVersion">KASIR v1.3.3 (revisi menu)</p>
 <div class="panel"><div class="panel-head"><h2>Transaksi terbaru</h2><button class="link" onclick="showPage('history')">Lihat semua →</button></div><div id="recentTable"></div></div>
 </section>
 <section id="products" class="page">
@@ -69,16 +65,6 @@
 <button class="btn full" id="completeSale">Simpan transaksi</button><button class="outline full" id="clearCart">Kosongkan keranjang</button></div>
 </div></div>
 </section>
-<section id="tables" class="page">
-<div class="page-head"><div><h1>Meja &amp; Pesanan</h1><p>Buka pesanan per meja, kirim ke dapur, bayar setelah selesai makan.</p></div><span class="pill" id="tableStat">0 / 0 meja terisi</span></div>
-<div class="toolbar"><button class="outline" id="addTable">＋ Tambah meja</button><button class="outline" id="newTakeAway">🥡 Take Away baru</button><button class="outline" id="newDelivery">🛵 Delivery baru</button></div>
-<div class="panel"><h2>Meja</h2><div id="tableGrid" class="table-grid"></div></div>
-<div class="panel"><h2>Take Away / Delivery berjalan</h2><div id="openOrders" class="table-grid"></div></div>
-</section>
-<section id="kitchen" class="page">
-<div class="page-head"><div><h1>Dapur</h1><p>Antrian pesanan yang dikirim dari kasir.</p></div><button class="outline" id="refreshKitchen">↻ Segarkan</button></div>
-<div class="kitchen-cols"><div class="panel"><h2>Baru</h2><div id="kBaru"></div></div><div class="panel"><h2>Diproses</h2><div id="kProses"></div></div><div class="panel"><h2>Siap</h2><div id="kSiap"></div></div></div>
-</section>
 <section id="history" class="page">
 <div class="page-head"><div><h1>Riwayat Transaksi</h1><p>Telusuri detail penjualan yang sudah disimpan.</p></div></div>
 <div class="toolbar"><input id="historySearch" placeholder="Cari nomor nota / pelanggan / kasir…"><input type="date" id="historyDate"><select id="historyType"><option value="">Semua tipe</option><option>Dine In</option><option>Delivery</option><option>Take Away</option></select></div><div class="panel" id="historyTable"></div>
@@ -96,15 +82,15 @@
 <div class="panel"><div class="panel-head"><h2>Rincian transaksi (untuk ekspor)</h2><small>Memuat tipe transaksi dan metode pembayaran</small></div><div id="reportDetail"></div></div>
 </section>
 <section id="expenses" class="page">
-<div class="page-head"><div><h1>Pengeluaran</h1><p>Catat biaya operasional usaha.</p></div><div class="toolbar"><button class="outline" id="manageExpenseTypes">Kelola jenis & item</button><button class="btn" onclick="openExpense()">＋ Tambah pengeluaran</button></div></div><div class="panel"><div class="toolbar"><button class="tab active" data-expense-report="list">Daftar pengeluaran</button><button class="tab" data-expense-report="summary">Ringkasan</button><button class="tab" data-expense-report="cashbook">Buku kas</button><button class="tab" data-expense-report="cashflow">Arus kas</button><button class="tab" data-expense-report="type">Per jenis</button><button class="tab" data-expense-report="item">Per item</button><button class="tab" data-expense-report="payment">Metode pembayaran</button><button class="tab" data-expense-report="salary">Gaji per karyawan</button></div><div id="expenseTable"></div></div>
+<div class="page-head"><div><h1>Pengeluaran</h1><p>Catat biaya operasional usaha.</p></div><div class="toolbar"><button class="outline" id="manageExpenseTypes">Kelola jenis & item</button><button class="btn" onclick="openExpense()">＋ Tambah pengeluaran</button></div></div><div class="panel"><div class="toolbar"><button class="outline" id="addEmployee">＋ Tambah karyawan</button><button class="outline" id="addSalary">＋ Input gaji</button><button class="outline" onclick="showEmployeeRecords()">Data &amp; riwayat gaji</button></div><div id="employeeRecords" hidden><div class="panel" id="employeeTable"></div><div class="panel"><h2>Riwayat pembayaran gaji</h2><div id="salaryTable"></div></div></div><div class="toolbar"><button class="tab active" data-expense-report="list">Daftar pengeluaran</button><button class="tab" data-expense-report="summary">Ringkasan</button><button class="tab" data-expense-report="cashbook">Buku kas</button><button class="tab" data-expense-report="cashflow">Arus kas</button><button class="tab" data-expense-report="type">Per jenis</button><button class="tab" data-expense-report="item">Per item</button><button class="tab" data-expense-report="payment">Metode pembayaran</button><button class="tab" data-expense-report="salary">Gaji per karyawan</button></div><div id="expenseTable"></div></div>
 </section>
-<section id="employees" class="page"><div class="page-head"><div><h1>Karyawan</h1><p>Data karyawan dan pencatatan gaji.</p></div><button class="btn" id="addEmployee">＋ Tambah karyawan</button></div><div class="toolbar"><button class="outline" id="addSalary">＋ Input gaji</button></div><div class="panel" id="employeeTable"></div><div class="panel"><h2>Riwayat pembayaran gaji</h2><div id="salaryTable"></div></div></section>
+
 <section id="settings" class="page">
 <div class="page-head"><div><h1>Pengaturan</h1><p>Identitas toko, kasir, dan pengelolaan data perangkat.</p></div></div>
 <div class="panel settings-grid"><div><h2>Profil toko</h2><label>Nama toko<input id="storeName" placeholder="Nama usaha"></label><label>Alamat toko<input id="storeAddress" placeholder="Alamat"></label><label>Nomor telepon<input id="storePhone" placeholder="Nomor telepon"></label><label>Logo toko (PNG)<input id="storeLogo" type="file" accept="image/png"></label><img id="logoPreview" alt="Pratinjau logo toko" style="display:none;max-width:150px;max-height:90px;object-fit:contain;border:1px solid #ddd;border-radius:8px;padding:6px"><label>Mata uang<select id="currency"><option value="IDR">Rupiah (IDR)</option></select></label><button class="btn" id="saveSettings">Simpan pengaturan</button></div>
 <div><h2>Data & perangkat</h2><p class="muted">Data transaksi dan produk disimpan secara lokal di perangkat ini. Backup JSON dapat dipakai untuk memindahkan seluruh data.</p><button class="outline full" id="backupData">Cadangkan data (JSON)</button><label class="file-label">Pulihkan cadangan JSON<input type="file" id="restoreFile" accept=".json,application/json"></label><button class="outline full danger" id="clearData">Hapus seluruh data aplikasi</button><p class="muted small">Backup secara berkala. Menghapus data browser atau mengganti perangkat dapat menghilangkan data jika belum dicadangkan.</p></div>
 <div><h2>Printer Bluetooth RPP02N</h2><p class="muted small">Pasangkan RPP02N terlebih dahulu melalui pengaturan Bluetooth Android.</p><button class="outline full" id="refreshPrinters">Cari printer yang sudah dipasangkan</button><label>Printer default<select id="printerSelect"><option value="">Pilih printer</option></select></label><button class="btn full" id="connectPrinter">Hubungkan printer</button><p id="printerStatus" class="muted small">Belum terhubung</p><label>Footer struk<input id="receiptFooter" placeholder="Terima kasih telah berbelanja"></label><button class="outline full" id="printLast">Cetak struk terakhir</button><p class="muted small">Pencetakan menggunakan Bluetooth Classic SPP dan ESC/POS.</p></div>
-<div><h2>Aplikasi</h2><p>Kasir DBL v1.3.2 · Android offline</p><button class="outline full" id="changePin">Ganti PIN keamanan</button><p class="muted small">Penyimpanan SQLite pada Android · IndexedDB pada browser</p><button class="outline full" id="reloadApp">Muat ulang aplikasi</button></div></div>
+<div><h2>Aplikasi</h2><p>Kasir DBL v1.3.3 · Android offline</p><button class="outline full" id="changePin">Ganti PIN keamanan</button><p class="muted small">Penyimpanan SQLite pada Android · IndexedDB pada browser</p><button class="outline full" id="reloadApp">Muat ulang aplikasi</button></div></div>
 </section>
 </main></div>
 <dialog id="categoryDialog"><form method="dialog" id="categoryForm"><div class="modal-head"><h2>Master kategori produk</h2><button class="x" value="cancel">×</button></div><label>Nama kategori<input id="categoryName" required maxlength="60"></label><input type="hidden" id="categoryId"><menu><button class="outline" value="cancel">Tutup</button><button class="btn" id="saveCategory">Simpan kategori</button></menu><div id="categoryTable"></div></form></dialog>
@@ -117,16 +103,7 @@
 <dialog id="customerDialog"><form method="dialog" id="customerForm"><div class="modal-head"><h2 id="customerDialogTitle">Tambah pelanggan</h2><button class="x" value="cancel">×</button></div><input type="hidden" id="customerId"><label>Kode pelanggan<input id="cCode"></label><label>Nama pelanggan<input id="cName" required></label><label>Nomor HP / WhatsApp<input id="cPhone"></label><label>Alamat<textarea id="cAddress"></textarea></label><label>Email<input id="cEmail" type="email"></label><label>Keterangan<input id="cNote"></label><menu><button class="outline" value="cancel">Batal</button><button class="btn" id="saveCustomer" value="default">Simpan</button></menu></form></dialog>
 <dialog id="editTxDialog"><form method="dialog"><div class="modal-head"><h2>Edit transaksi</h2><button class="x" value="cancel">×</button></div><input type="hidden" id="editTxId"><label>Pelanggan<input id="editTxCustomer"></label><label>Diskon (Rp)<input id="editTxDiscount" type="number" min="0"></label><label>Metode pembayaran<select id="editTxPayment"><option>Tunai</option><option>QRIS</option><option>Transfer Bank</option><option>Kartu Debit</option><option>Kartu Kredit</option><option>E-Wallet</option><option>Tempo / Kasbon</option></select></label><label>Uang diterima<input id="editTxPaid" type="number" min="0"></label><label>Catatan<input id="editTxNote"></label><menu><button class="outline" value="cancel">Batal</button><button class="btn" id="saveTxEdit" value="default">Simpan perubahan</button></menu></form></dialog>
 <dialog id="exitDialog" class="confirm-dialog"><div class="modal-head"><h2>Keluar dari Kasir DBL?</h2></div><p>Apakah Anda yakin ingin keluar dari aplikasi?</p><menu><button type="button" class="outline" id="cancelExit">Tidak</button><button type="button" class="btn" id="confirmExit">Ya, keluar</button></menu></dialog>
-<dialog id="orderDialog" class="wide"><div class="modal-head"><h2 id="orderTitle">Pesanan</h2><button type="button" class="x" onclick="document.getElementById('orderDialog').close()">×</button></div>
-<div class="order-layout"><div><div class="toolbar"><input id="orderSearch" placeholder="Cari menu…"><select id="orderCategory"></select></div><div id="orderMenu" class="product-grid"></div></div>
-<div class="order-side"><div id="orderLines" class="cart-items"></div>
-<label>Nama pelanggan (opsional)<input id="orderCustomer" placeholder="Nama pelanggan"></label>
-<div class="total-line"><span>Subtotal</span><b id="orderSub">Rp0</b></div><div class="total-line"><span>Diskon (Rp)</span><input id="orderDiscount" type="number" min="0" value="0"></div><div class="total-line grand"><span>Total</span><strong id="orderTotal">Rp0</strong></div>
-<label>Metode pembayaran<select id="orderPayment"><option>Tunai</option><option>QRIS</option><option>Transfer Bank</option><option>Kartu Debit</option><option>Kartu Kredit</option><option>E-Wallet</option><option>Tempo / Kasbon</option></select></label>
-<div id="orderCashBox"><label>Uang diterima<input id="orderPaid" type="number" min="0" placeholder="Nominal pembayaran"></label><div class="total-line"><span>Kembalian</span><b id="orderChange">Rp0</b></div></div>
-<button type="button" class="outline full" id="sendKitchen">🍳 Kirim ke dapur</button><button type="button" class="btn full" id="payOrder">Bayar &amp; selesai</button><div class="toolbar-actions" style="margin-top:8px"><button type="button" class="outline" id="saveOrder">Simpan &amp; tutup</button><button type="button" class="outline danger" id="voidOrder">Batalkan pesanan</button></div></div></div></dialog>
 <div id="toast" role="status"></div>
 <script type="module" src="app.js"></script>
-<script type="module" src="resto.js"></script>
 <dialog id="expenseMasterDialog"><form method="dialog" id="expenseMasterForm"><div class="modal-head"><h2>Master jenis & item pengeluaran</h2><button class="x" value="cancel">×</button></div><label>Jenis<input id="expenseMasterType" placeholder="Contoh: Bahan baku" required></label><button type="button" class="outline" id="addExpenseType">Tambah jenis</button><hr><label>Jenis untuk item<select id="expenseMasterSelect"></select></label><label>Item<input id="expenseMasterItem" placeholder="Contoh: Beras" required></label><button type="button" class="outline" id="addExpenseItem">Tambah item</button><div id="expenseMasterList"></div><menu><button class="btn" value="close">Selesai</button></menu></form></dialog>
 </body></html>
