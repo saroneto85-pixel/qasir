@@ -7,7 +7,7 @@
   "display": "standalone",
   "orientation": "any",
   "background_color": "#f7faef",
-  "theme_color": "#20d900",
+  "theme_color": "#17634f",
   "icons": [
     {
       "src": "logo-dbl.png",

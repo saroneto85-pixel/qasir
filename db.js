@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 
-const STORES = ['products', 'transactions', 'expenses', 'settings', 'customers', 'employees', 'salaryPayments', 'expenseTypes', 'expenseItems', 'categories', 'tables', 'orders'];
+const STORES = ['products', 'transactions', 'expenses', 'settings', 'customers', 'employees', 'salaryPayments', 'expenseTypes', 'expenseItems', 'categories', 'tables', 'orders', 'stockMovements', 'assets', 'liabilities', 'receivables', 'openingBalance'];
 const DB_NAME = 'kasmini_pos';
 const DB_VERSION = 2;
 
@@ -84,7 +84,7 @@ async function initNativeDatabase() {
 
 async function initBrowserDatabase() {
   await new Promise((resolve, reject) => {
-    const request = indexedDB.open('kasmini-pos-plus', 4);
+    const request = indexedDB.open('kasmini-pos-plus', 5);
     request.onupgradeneeded = event => {
       const database = event.target.result;
       STORES.forEach(name => {

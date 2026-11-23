@@ -3,8 +3,5 @@
   "appName": "KASIR",
   "webDir": "dist",
   "bundledWebRuntime": false,
-  "android": {
-    "allowMixedContent": false,
-    "adjustMarginsForEdgeToEdge": "force"
-  }
+  "android": {"allowMixedContent": false, "adjustMarginsForEdgeToEdge": "force"}
 }

@@ -29,7 +29,7 @@ HPP menggunakan `costPrice` yang tersimpan pada masing-masing item transaksi. Un
 ## Perbaikan teknis pada source
 - Pemanggilan `SQLiteDBConnection.query()` dan `run()` memakai bentuk argumen `(statement, values)` untuk kompatibilitas API plugin SQLite v7.
 - Store `customers` disiapkan pada adapter database untuk pengembangan data pelanggan selanjutnya.
-- Workflow GitHub Actions menggunakan runner Ubuntu 24.04, Node.js 24 tanpa cache npm berbasis lockfile (ZIP ini tidak menyertakan package-lock.json), JDK 21, Android SDK platform 35, dan upload artifact APK.
+- Workflow GitHub Actions diperbarui untuk runner Ubuntu 24.04, setup actions terbaru, Android SDK platform 35, serta upload artifact APK.
 
 ## Fitur yang belum diimplementasikan dalam ZIP ini
 Agar tidak menimbulkan kesan keliru, fitur berikut belum aktif/terintegrasi pada source ini:
