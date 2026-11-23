@@ -1,0 +1,97 @@
+
+name: Build Kasir DBL Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Check JavaScript and logic tests
+        run: |
+          node --check app.js
+          node --check db.js
+          node --check resto.js
+          node --check resto-logic.js
+          node test-resto-logic.mjs
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Apply app branding
+        run: |
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          cp android-branding/drawable-nodpi/ic_launcher_foreground.png android/app/src/main/res/drawable-nodpi/
+
+          cp android-branding/values/ic_launcher_background.xml android/app/src/main/res/values/
+
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
+            cp android-branding/mipmap-$d/ic_launcher.png android/app/src/main/res/mipmap-$d/
+          done
+
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp android-branding/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/
+
+          sed -i 's/android:label="[^"]*"/android:label="KASIR"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Install Bluetooth native bridge
+        run: |
+          mkdir -p android/app/src/main/java/id/kasmini/pos
+          cp android-native/src/main/java/id/kasmini/pos/*.java android/app/src/main/java/id/kasmini/pos/
+          python3 android-native/patch_manifest.py
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasir-dbl-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
