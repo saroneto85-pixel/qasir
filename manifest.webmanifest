@@ -1,0 +1,19 @@
+{
+  "name": "KASIR",
+  "short_name": "KASIR",
+  "description": "Aplikasi kasir offline Dapur Bumbu Lengkep",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7faef",
+  "theme_color": "#20d900",
+  "icons": [
+    {
+      "src": "logo-dbl.png",
+      "sizes": "500x500",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

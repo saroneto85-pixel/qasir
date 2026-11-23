@@ -1,0 +1,28 @@
+from pathlib import Path
+import shutil
+p=Path('index.html'); s=p.read_text()
+s=s.replace('<div class="page-head"><div><h1>Pengeluaran</h1><p>Catat biaya operasional usaha.</p></div><button class="btn" onclick="openExpense()">＋ Tambah pengeluaran</button></div>', '<div class="page-head"><div><h1>Pengeluaran</h1><p>Catat biaya operasional usaha.</p></div><div class="toolbar"><button class="outline" id="manageExpenseTypes">Kelola jenis & item</button><button class="btn" onclick="openExpense()">＋ Tambah pengeluaran</button></div></div>')
+s=s.replace('<label>Jenis pengeluaran<select id="eType"><option>Operasional</option><option>Bahan baku</option><option>Gaji</option><option>Utilitas</option><option>Transportasi</option><option>Lainnya</option></select></label><label>Item<input id="eName" required placeholder="Contoh: beras, listrik, gas"></label>', '<label>Jenis pengeluaran<select id="eType" required></select></label><label>Item<select id="eName" required></select></label>')
+# append lightweight master dialogs before closing body
+s=s.replace('</body>', '''<dialog id="expenseMasterDialog"><form method="dialog" id="expenseMasterForm"><div class="modal-head"><h2>Master jenis & item pengeluaran</h2><button class="x" value="cancel">×</button></div><label>Jenis<input id="expenseMasterType" placeholder="Contoh: Bahan baku" required></label><button type="button" class="outline" id="addExpenseType">Tambah jenis</button><hr><label>Jenis untuk item<select id="expenseMasterSelect"></select></label><label>Item<input id="expenseMasterItem" placeholder="Contoh: Beras" required></label><button type="button" class="outline" id="addExpenseItem">Tambah item</button><div id="expenseMasterList"></div><menu><button class="btn" value="close">Selesai</button></menu></form></dialog>
+</body>''')
+p.write_text(s)
+# JS patch replacing openExpense and save code; append helper functions
+p=Path('app.js'); s=p.read_text()
+start=s.index('async function openExpense()')
+end=s.index('async function deleteExpense',start)
+new='''async function getExpenseMasters(){let s=(await all('settings')).find(x=>x.id==='main')||{};let types=s.expenseTypes||['Operasional','Bahan baku','Gaji','Utilitas','Transportasi','Lainnya'];let items=s.expenseItems||{'Operasional':['Biaya operasional'],'Bahan baku':['Bahan makanan'],'Gaji':['Gaji karyawan'],'Utilitas':['Listrik','Air','Gas'],'Transportasi':['Transportasi'],'Lainnya':['Lainnya']};return {s,types,items}}
+async function saveExpenseMasters(types,items,s){await put('settings',{...s,id:'main',expenseTypes:types,expenseItems:items})}
+async function refreshExpenseItemOptions(){let {types,items}=await getExpenseMasters(),t=$('eType').value;$('eName').innerHTML=(items[t]||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')+'<option value="__custom__">+ Item lain (ketik)</option>';}
+$('eType').onchange=refreshExpenseItemOptions;
+async function openExpense(){ $('expenseForm').reset();$('eDate').value=today();$('eQty').value=1;let {types}=await getExpenseMasters();$('eType').innerHTML=types.map(x=>`<option>${esc(x)}</option>`).join('');await refreshExpenseItemOptions();let em=await all('employees');$('eEmployee').innerHTML='<option value="">— Tidak terkait karyawan —</option>'+em.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');$('expenseDialog').showModal()}
+$('eName').onchange=()=>{if($('eName').value==='__custom__'){let n=prompt('Nama item pengeluaran:');if(n){let opt=document.createElement('option');opt.value=n;opt.textContent=n;opt.selected=true;$('eName').append(opt)}else refreshExpenseItemOptions()}};
+$('manageExpenseTypes').onclick=async()=>{if(!await requirePin('mengelola master pengeluaran'))return;await renderExpenseMasters();$('expenseMasterDialog').showModal()};
+async function renderExpenseMasters(){let {types,items}=await getExpenseMasters();$('expenseMasterSelect').innerHTML=types.map(x=>`<option>${esc(x)}</option>`).join('');$('expenseMasterList').innerHTML=types.map(t=>`<p><b>${esc(t)}</b>: ${(items[t]||[]).map(esc).join(', ')||'Belum ada item'}</p>`).join('')}
+$('addExpenseType').onclick=async()=>{let n=$('expenseMasterType').value.trim();if(!n)return;let {s,types,items}=await getExpenseMasters();if(types.some(x=>x.toLowerCase()===n.toLowerCase()))return toast('Jenis sudah tersedia');types.push(n);items[n]=[];await saveExpenseMasters(types,items,s);$('expenseMasterType').value='';await renderExpenseMasters();toast('Jenis pengeluaran ditambahkan')};
+$('addExpenseItem').onclick=async()=>{let t=$('expenseMasterSelect').value,n=$('expenseMasterItem').value.trim();if(!t||!n)return;let {s,types,items}=await getExpenseMasters();items[t]??=[];if(items[t].some(x=>x.toLowerCase()===n.toLowerCase()))return toast('Item sudah tersedia');items[t].push(n);await saveExpenseMasters(types,items,s);$('expenseMasterItem').value='';await renderExpenseMasters();toast('Item pengeluaran ditambahkan')};
+$('expenseMasterSelect').onchange=renderExpenseMasters;
+$('saveExpense').onclick=async e=>{e.preventDefault();let qty=Number($('eQty').value)||1,unitPrice=Number($('eUnitPrice').value)||0,amount=Number($('eAmount').value)||qty*unitPrice,employee=(await all('employees')).find(x=>x.id===$('eEmployee').value),item=$('eName').value; if(item==='__custom__'||!item)return toast('Pilih item pengeluaran');await put('expenses',{id:uid(),type:$('eType').value,name:item,qty,unit:$('eUnit').value,unitPrice,amount,date:$('eDate').value,note:$('eNote').value,payment:$('ePayment').value,employeeId:employee?.id||'',employeeName:employee?.name||''});$('expenseDialog').close();await renderExpenses();await renderDashboard();await renderReports();toast('Pengeluaran disimpan')};
+'''
+s=s[:start]+new+s[end:]
+p.write_text(s)
