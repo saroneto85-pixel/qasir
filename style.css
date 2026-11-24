@@ -222,3 +222,33 @@ main#main,.page{min-width:0}
 
 @media(max-width:560px){.inv-panel .inv-table .stick{min-width:96px}.inv-panel .inv-table th{font-size:9.5px;padding:8px 5px}.inv-panel .inv-table td{padding:8px 5px}}
 .inv-panel .exp-cards .exp-card p{margin:6px 0 0}
+
+/* ===== KASIR 2.2 ===== */
+:root{--primary:#17634f;--accent:#f2c94c}
+/* pelanggan: toolbar proporsional */
+.cust-tools{display:grid;gap:10px;margin-bottom:14px}
+.cust-search{width:100%}
+.cust-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.cust-actions button{width:100%;min-height:42px;white-space:normal;line-height:1.25}
+@media(max-width:560px){.cust-actions{grid-template-columns:1fr 1fr}.cust-actions #addCustomer{grid-column:1/-1}.cust-actions button{font-size:13px;padding:9px 8px}}
+.sku{display:block;color:var(--muted);font-size:11px;font-weight:500;letter-spacing:.2px}
+.sku-row{display:flex;gap:8px;align-items:stretch}.sku-row input{flex:1;min-width:0}.sku-row button{white-space:nowrap;padding:0 12px}
+dialog label small.muted{display:block;margin-top:4px;font-weight:400}
+/* halaman pembukuan */
+.nr-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}.nr-side{display:grid;gap:16px}
+.nr-form h2,.nr-result h2{margin:0 0 12px;font-size:16px}.nr-form label{display:block;margin-bottom:12px;font-weight:600;font-size:13px}.nr-form label input{display:block;width:100%;margin-top:5px}.nr-form label small{display:block;margin-top:4px;font-weight:400;color:var(--muted)}
+.nr-form .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px dashed var(--line)}.kv:last-child{border-bottom:0}.kv b{text-align:right}.kv.total{font-size:16px;border-top:2px solid var(--line)}.kv small{color:var(--muted);display:block;font-weight:400}
+.bk-month{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:600}.bk-month input{min-width:150px}
+.warn-list{display:grid;gap:8px}.warn{padding:10px 12px;border-radius:10px;font-size:13px;border:1px solid var(--line);background:#fff}.warn.ok{background:#eaf6ee;border-color:#bfe0c9;color:#1f6b3b}.warn.warn{background:#fff4e0;border-color:#f3d19a;color:#8a5200}.warn.muted{color:var(--muted)}
+.bk-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+.bk-table td.num,.bk-table th.num{text-align:right;white-space:nowrap}.bk-table tr.sub td{background:#f1f7ee;font-weight:700}.bk-table tr.tot td{background:#e3f0e4;font-weight:800}
+.status{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#eee;color:#555}.status.good{background:#dff3e5;color:#1d6b38}.status.bad{background:#ffe6dd;color:#a1391a}.status.mid{background:#fff1cf;color:#8a5200}
+.ev-cards{display:none}
+.debt-stats{margin-bottom:14px}
+.cashier-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}.cashier-row small{display:block;color:var(--muted)}
+.pay-hist{margin-top:10px;font-size:13px}.pay-hist div{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.debt-tag{font-size:11px;background:#e8f3ec;color:#17634f;border-radius:6px;padding:1px 6px;margin-left:4px}
+body:has(#transaction.active) .bottom-transaction{display:none!important}
+@media(max-width:850px){.nr-grid,.bk-grid{grid-template-columns:1fr}}
+@media(max-width:560px){main{padding-bottom:104px}.ev-table{display:none}.ev-cards{display:grid;gap:10px}.ev-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.ev-card .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.ev-card small{display:block;color:var(--muted);margin-top:4px}.bk-month input{min-width:0;width:100%}#pembukuan .page-head,#evaluasi .page-head,#neraca .page-head{flex-direction:column;align-items:stretch}}

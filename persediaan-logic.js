@@ -44,7 +44,7 @@ export function monthRange(ym) {
 
 // Jenis catatan yang masuk akal untuk sebuah item pada sebuah bagian.
 export function kindsFor(item, area) {
-  if (area === 'depan') return ['jual', 'rusak', 'awal'];
+  if (area === 'depan') return ['rusak', 'awal']; // penjualan diambil otomatis dari kasir (SKU)
   return item && item.hasDepan ? ['masuk', 'naik', 'rusak', 'awal'] : ['masuk', 'pakai', 'rusak', 'awal'];
 }
 
@@ -193,10 +193,23 @@ export function posSales(transactions, productId, date) {
   return q;
 }
 
+// Jumlah terjual per SKU/kode: baris transaksi cocok bila SKU-nya sama, atau produknya (id) memakai SKU itu.
+export function posSalesBySku(transactions, products, sku, date) {
+  const k = String(sku || '').trim().toUpperCase();
+  if (!k) return 0;
+  const ids = new Set((products || []).filter(p => String(p.sku || '').trim().toUpperCase() === k).map(p => p.id));
+  let q = 0;
+  for (const t of transactions || []) {
+    if (t.date !== date) continue;
+    for (const it of t.items || []) if (String(it.sku || '').trim().toUpperCase() === k || ids.has(it.productId)) q += n(it.qty);
+  }
+  return q;
+}
+
 // Daftar item contoh (nama & satuan dari file Kontrol Stok). Tanpa angka stok.
 // Catatan: "Dencis" di Excel satu sheet; di sini dipecah menjadi ikan segar → ikan goreng (perantara) → dua menu (sambal, bakar).
 export const SEED_ITEMS = [
-  { name: 'Rendang', unit: '', hasDepan: true },
+  { name: 'Rendang', sku: '', unit: '', hasDepan: true },
   { name: 'Ayam Utuh', unit: '', hasDepan: true },
   { name: 'Ayam Potong', unit: '', hasDepan: true },
   { name: 'Nila Besar', unit: '', hasDepan: true },

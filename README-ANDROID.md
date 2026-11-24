@@ -53,3 +53,6 @@ Workflow membangun APK debug untuk pengujian. APK belum dibangun atau diuji dari
 
 ## Menjaga data
 Database SQLite berada di direktori privat aplikasi Android. Jangan menghapus data aplikasi atau uninstall sebelum membuat backup JSON jika data transaksi perlu dipertahankan. Pergantian `applicationId` juga dapat membuat aplikasi diperlakukan sebagai aplikasi berbeda.
+
+## Versi 2.2.0
+Lihat `CHANGELOG-KASIR-2.2.0.md`. Jalankan `node test-pembukuan-logic.mjs` dan `node test-persediaan-logic.mjs` untuk uji rumus.
