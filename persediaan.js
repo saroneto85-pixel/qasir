@@ -26,7 +26,7 @@ async function adjustStock(productId, delta) {
   return { p, next };
 }
 
-let tab = 'dash', items = [], entries = [], products = [], low = 2, month = localToday().slice(0, 7), cardItem = '', loaded = false;
+let tab = 'dash', items = [], entries = [], products = [], low = 2, month = localToday().slice(0, 7), cardItem = '', loaded = false, unmatchedSold = [], lastSync = '';
 
 // ---------- data ----------
 async function load() {
@@ -36,6 +36,7 @@ async function load() {
   const s = (await all('settings')).find(x => x.id === 'main') || {};
   low = s.invLowDays === undefined || s.invLowDays === null || s.invLowDays === '' ? 2 : Number(s.invLowDays);
   loaded = true;
+  await autoSync();
 }
 const itemById = id => items.find(i => i.id === id);
 const pageActive = () => $('inventory')?.classList.contains('active');
@@ -160,9 +161,11 @@ function depanHTML() {
   const pos = simpleTable(shownF.map(r => `<tr><td class="stick"><b>${esc(r.item.name)}</b><small>${esc(unitOf(r.item) || '—')}${skuTxt(r.item)}</small></td><td class="num">${num(r.awalF)}</td><td class="num">${num(r.fMasuk)}</td><td class="num">${num(r.fJual)}</td><td class="num">${num(r.fRusak)}</td><td class="num"><b>${num(r.fSisa)}</b></td></tr>`), ['Item', 'Awal', 'Dari dapur', 'Terjual', 'Rusak', 'Sisa'], 'inv-table');
   const ids = new Set(fi.map(i => i.id));
   const list = entries.filter(e => ids.has(e.itemId) && e.date >= from && e.date <= to && (e.area === 'depan' || e.kind === 'naik')).sort(sortDesc);
-    const actions = `<div class="inv-actions"><button class="btn" onclick="invSalesOpen()">＋ Penjualan</button><button class="outline" onclick="invOpen({area:'depan',kind:'rusak'})">Rusak</button><button class="outline" onclick="invOpen({area:'depan',kind:'awal'})">Stok awal depan</button></div>`;
+    const actions = `<div class="inv-actions"><button class="outline" onclick="invOpen({area:'depan',kind:'rusak'})">Rusak</button><button class="outline" onclick="invOpen({area:'depan',kind:'awal'})">Stok awal depan</button></div>`;
+  const noSku = fi.filter(i => !(i.sku || prodFor(i)?.sku));
+  const status = `<div class="inv-sync-box"><b>✔ Penjualan tersinkron otomatis dari kasir</b><small>Setiap transaksi dicocokkan lewat SKU/kode dan langsung mengisi kolom Terjual serta mengurangi stok.${lastSync ? ' Diperbarui ' + lastSync + '.' : ''}</small>${noSku.length ? `<small class="warn-text">⚠ Belum ber-SKU (tidak tersinkron): ${noSku.map(i => esc(i.name)).join(', ')}. Isi SKU di Kelola item.</small>` : ''}${unmatchedSold.length ? `<small class="warn-text">ℹ Produk terjual yang belum terhubung ke item persediaan: ${unmatchedSold.slice(0, 6).map(esc).join(', ')}${unmatchedSold.length > 6 ? ' dll.' : ''}.</small>` : ''}</div>`;
   const hint = '<p class="inv-note">Naik dari dapur otomatis menjadi stok depan dan menambah stok produk (dicocokkan lewat SKU). Terjual diambil otomatis dari kasir lewat SKU dan mengurangi stok produk. Sisa sore otomatis menjadi stok awal hari berikutnya.</p>';
-  return actions + `<div class="panel exp-panel inv-panel"><div class="panel-head"><h2>Posisi stok depan</h2><small>${dmy(from)} – ${dmy(to)}</small></div><div class="pad">${fi.length ? pos + hiddenNote(rows, shownF) : '<div class="empty">Belum ada item yang punya bagian depan. Centang “Ada bagian depan” saat menambah item.</div>'}</div></div>
+  return actions + status + `<div class="panel exp-panel inv-panel"><div class="panel-head"><h2>Posisi stok depan</h2><small>${dmy(from)} – ${dmy(to)}</small></div><div class="pad">${fi.length ? pos + hiddenNote(rows, shownF) : '<div class="empty">Belum ada item yang punya bagian depan. Centang “Ada bagian depan” saat menambah item.</div>'}</div></div>
     <div class="panel exp-panel inv-panel"><div class="panel-head"><h2>Catatan depan</h2><small>${list.length} catatan</small></div><div class="pad">${entryList(list, true)}</div></div>` + hint;
 }
 
@@ -392,45 +395,42 @@ async function seedItems() {
   toast(n ? `${n} item contoh ditambahkan` : 'Semua item contoh sudah ada');
 }
 
-// ---------- penjualan dari kasir (dicocokkan lewat SKU) ----------
-function datesOf(date, scope) {
-  if (scope !== 'month') return [date];
-  const { days } = monthRange(date.slice(0, 7));
-  return Array.from({ length: days }, (_, k) => `${date.slice(0, 7)}-${String(k + 1).padStart(2, '0')}`);
-}
-async function writeSales(dates) {
-  const txs = await all('transactions'); products = await all('products');
+// ---------- penjualan dari kasir: sinkron OTOMATIS lewat SKU ----------
+// Setiap penjualan di kasir menghasilkan catatan 'jual' depan per item per hari (id kasir-<item>-<tanggal>).
+// Disinkronkan saat transaksi tersimpan, saat Persediaan dibuka/dimuat ulang, dan saat SKU berubah.
+async function writeSales(dates, txs) {
+  txs = txs || await all('transactions'); products = await all('products');
   let n = 0;
   for (const it of items.filter(i => i.hasDepan)) {
-    const sku = it.sku || prodFor(it)?.sku; if (!sku) continue;
+    const sku = it.sku || prodFor(it)?.sku;
     for (const date of dates) {
-      const q = posSalesBySku(txs, products, sku, date), id = `kasir-${it.id}-${date}`, ex = entries.find(x => x.id === id);
+      const id = `kasir-${it.id}-${date}`, ex = entries.find(x => x.id === id), q = sku ? posSalesBySku(txs, products, sku, date) : 0;
       if (q > 0) { if (!ex || ex.qty !== q) { await put('invEntries', { id, date, itemId: it.id, area: 'depan', kind: 'jual', qty: q, note: 'Dari transaksi kasir (SKU)', source: 'kasir', createdAt: ex?.createdAt || Date.now() }); n++; } }
       else if (ex) { await del('invEntries', id); n++; }
     }
   }
+  // catatan kasir milik item yang sudah dihapus / bukan menu depan lagi
+  for (const e of entries.filter(x => x.source === 'kasir' && dates.includes(x.date) && !items.some(i => i.id === x.itemId && i.hasDepan))) { await del('invEntries', e.id); n++; }
   return n;
 }
-async function syncSale(date) { await load(); if (await writeSales([date])) await renderInventory(); }
-async function openSales() {
-  if (!items.length) { toast('Tambahkan item persediaan dulu'); invManageItems(); return; }
-  $('isDate').value = localToday(); $('isScope').value = 'day';
-  await salesPreview(); $('invSalesDialog').showModal();
+async function autoSync() {
+  try {
+    if (!items.length) { unmatchedSold = []; return; }
+    const txs = await all('transactions'); products = await all('products');
+    const monthTx = txs.filter(t => String(t.date).startsWith(month));
+    const dates = [...new Set([...monthTx.map(t => t.date), ...entries.filter(e => e.source === 'kasir' && String(e.date).startsWith(month)).map(e => e.date)])];
+    if (await writeSales(dates, txs)) entries = await all('invEntries');
+    const skus = new Set(items.filter(i => i.hasDepan).map(i => normSku(i.sku || prodFor(i)?.sku)).filter(Boolean));
+    const un = new Set();
+    for (const t of monthTx) for (const l of t.items || []) { const p = products.find(x => x.id === l.productId), k = normSku(l.sku || p?.sku); if (!skus.has(k) && !(p && skus.has(normSku(p.sku)))) un.add(l.name); }
+    unmatchedSold = [...un];
+    lastSync = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  } catch (err) { console.warn('Sinkron penjualan gagal', err); }
 }
-async function salesPreview() {
-  const dates = datesOf($('isDate').value || localToday(), $('isScope').value), txs = await all('transactions'); products = await all('products');
-  const rows = items.filter(i => i.hasDepan).map(it => {
-    const sku = it.sku || prodFor(it)?.sku;
-    const q = sku ? dates.reduce((t, d) => t + posSalesBySku(txs, products, sku, d), 0) : null;
-    return `<tr><td><b>${esc(it.name)}</b><small class="sku">SKU: ${esc(sku || '—')}</small></td><td class="num">${q === null ? '<small>SKU belum diisi</small>' : `<b>${num(q)}</b> ${esc(unitOf(it))}`}</td></tr>`;
-  });
-  $('isPreview').innerHTML = rows.length ? simpleTable(rows, ['Item (menu depan)', 'Terjual (kasir)']) : '<div class="empty">Belum ada item dengan bagian depan.</div>';
-}
-async function saveSales(e) {
-  e.preventDefault();
-  const n = await writeSales(datesOf($('isDate').value || localToday(), $('isScope').value));
-  $('invSalesDialog').close(); await renderInventory();
-  toast(n ? `${n} catatan penjualan diperbarui dari kasir` : 'Tidak ada perubahan penjualan dari kasir');
+async function syncSale(date) {
+  await load();
+  if (date && !String(date).startsWith(month) && (await writeSales([date]))) entries = await all('invEntries');
+  await renderInventory();
 }
 
 // ---------- pasang ----------
@@ -448,7 +448,6 @@ function bind() {
   };
   $('iiProduct').onchange = async () => { const p = (await all('products')).find(x => x.id === $('iiProduct').value); if (p) { $('iiSku').value = p.sku || ''; if (!$('iiName').value.trim()) $('iiName').value = p.name; } };
   $('ioOut').onchange = showOlahSku;
-  $('isSave').onclick = saveSales; $('isDate').onchange = $('isScope').onchange = salesPreview;
   $('invManage').onclick = openItems;
   $('invEntryForm').addEventListener('submit', e => e.preventDefault());
   $('ieSave').onclick = saveEntry;
@@ -465,5 +464,5 @@ bind();
 Object.assign(window, {
   renderInventory,
   invOpen: openEntry, invOlah: () => openOlah(), invEdit: editEntry, invDelete: deleteEntry,
-  invSalesOpen: openSales, invSyncSale: syncSale, invManageItems: openItems, invEditItem: editItem, invDelItem: deleteItem, invSeed: seedItems,
+  invSyncSale: syncSale, invManageItems: openItems, invEditItem: editItem, invDelItem: deleteItem, invSeed: seedItems,
 });
