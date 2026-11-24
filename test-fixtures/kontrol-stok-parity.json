@@ -1,0 +1,1272 @@
+{
+ "month": "2026-11",
+ "cards": [
+  {
+   "name": "Rendang",
+   "sheet": "Stok Rendang",
+   "hasDepan": true,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 252
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 50
+    },
+    {
+     "date": "2026-11-01",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 40
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 50
+    },
+    {
+     "date": "2026-11-02",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 40
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 50
+    },
+    {
+     "date": "2026-11-03",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 40
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 50
+    },
+    {
+     "date": "2026-11-04",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 40
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 252
+    },
+    {
+     "date": "2026-11-05",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 30
+    },
+    {
+     "date": "2026-11-06",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 50
+    },
+    {
+     "date": "2026-11-06",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 45
+    },
+    {
+     "date": "2026-11-07",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 50
+    },
+    {
+     "date": "2026-11-07",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 55
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 50
+    }
+   ],
+   "expect": {
+    "awal": 252,
+    "masuk": 252,
+    "terjual": 290,
+    "rusakD": 0,
+    "rusakF": 0,
+    "sisaD": 154,
+    "sisaF": 60,
+    "total": 214
+   }
+  },
+  {
+   "name": "Ayam Utuh",
+   "sheet": "Stok Ayam Utuh",
+   "hasDepan": true,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-01",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 9
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-04",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-05",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-06",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-06",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 11
+    },
+    {
+     "date": "2026-11-07",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 20
+    },
+    {
+     "date": "2026-11-07",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 18
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-08",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 17
+    },
+    {
+     "date": "2026-11-09",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-09",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 5
+    }
+   ],
+   "expect": {
+    "awal": 100,
+    "masuk": 100,
+    "terjual": 105,
+    "rusakD": 0,
+    "rusakF": 0,
+    "sisaD": 90,
+    "sisaF": 5,
+    "total": 95
+   }
+  },
+  {
+   "name": "Ayam Potong",
+   "sheet": "Stok Ayam Potong",
+   "hasDepan": true,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-01",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 9
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-04",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-05",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-06",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-06",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 11
+    },
+    {
+     "date": "2026-11-07",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 20
+    },
+    {
+     "date": "2026-11-07",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 18
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-08",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 17
+    },
+    {
+     "date": "2026-11-09",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-09",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 5
+    }
+   ],
+   "expect": {
+    "awal": 100,
+    "masuk": 100,
+    "terjual": 105,
+    "rusakD": 0,
+    "rusakF": 0,
+    "sisaD": 90,
+    "sisaF": 5,
+    "total": 95
+   }
+  },
+  {
+   "name": "Nila Besar",
+   "sheet": "Stok Nila Besar",
+   "hasDepan": true,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-01",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 9
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-04",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-05",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-06",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-06",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 11
+    },
+    {
+     "date": "2026-11-07",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 20
+    },
+    {
+     "date": "2026-11-07",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 18
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-08",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 17
+    },
+    {
+     "date": "2026-11-09",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-09",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 5
+    }
+   ],
+   "expect": {
+    "awal": 100,
+    "masuk": 100,
+    "terjual": 105,
+    "rusakD": 0,
+    "rusakF": 0,
+    "sisaD": 90,
+    "sisaF": 5,
+    "total": 95
+   }
+  },
+  {
+   "name": "Kembung",
+   "sheet": "Stok Kembung",
+   "hasDepan": true,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-01",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 9
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-04",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-05",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-06",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-06",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 11
+    },
+    {
+     "date": "2026-11-07",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 20
+    },
+    {
+     "date": "2026-11-07",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 18
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-08",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 17
+    },
+    {
+     "date": "2026-11-09",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-09",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 5
+    }
+   ],
+   "expect": {
+    "awal": 100,
+    "masuk": 100,
+    "terjual": 105,
+    "rusakD": 0,
+    "rusakF": 0,
+    "sisaD": 90,
+    "sisaF": 5,
+    "total": 95
+   }
+  },
+  {
+   "name": "Nila Kecil",
+   "sheet": "Stok Nila Kecil",
+   "hasDepan": true,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-01",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 9
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-04",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-05",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-06",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-06",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 11
+    },
+    {
+     "date": "2026-11-07",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 20
+    },
+    {
+     "date": "2026-11-07",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 18
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 100
+    },
+    {
+     "date": "2026-11-08",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 15
+    },
+    {
+     "date": "2026-11-08",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 17
+    },
+    {
+     "date": "2026-11-09",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-09",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 5
+    }
+   ],
+   "expect": {
+    "awal": 100,
+    "masuk": 100,
+    "terjual": 105,
+    "rusakD": 0,
+    "rusakF": 0,
+    "sisaD": 90,
+    "sisaF": 5,
+    "total": 95
+   }
+  },
+  {
+   "name": "Beras",
+   "sheet": "Stok Beras",
+   "hasDepan": true,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 20
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-01",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 9
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 20
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-02",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 11
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-03",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "naik",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-04",
+     "area": "depan",
+     "kind": "jual",
+     "qty": 10
+    }
+   ],
+   "expect": {
+    "awal": 20,
+    "masuk": 20,
+    "terjual": 40,
+    "rusakD": 0,
+    "rusakF": 0,
+    "sisaD": 0,
+    "sisaF": 0,
+    "total": 0
+   }
+  },
+  {
+   "name": "Minyak Goreng",
+   "sheet": "Stok Minyak Goreng",
+   "hasDepan": false,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 24
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 4
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 3
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 5
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 24
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 5
+    }
+   ],
+   "expect": {
+    "awal": 24,
+    "masuk": 24,
+    "terjual": 27,
+    "rusakD": 0,
+    "sisaD": 21,
+    "total": 21
+   }
+  },
+  {
+   "name": "Telur",
+   "sheet": "Stok Telur",
+   "hasDepan": false,
+   "entries": [
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "awal",
+     "qty": 24
+    },
+    {
+     "date": "2026-11-01",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 4
+    },
+    {
+     "date": "2026-11-02",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 3
+    },
+    {
+     "date": "2026-11-03",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 5
+    },
+    {
+     "date": "2026-11-04",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 10
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "masuk",
+     "qty": 24
+    },
+    {
+     "date": "2026-11-05",
+     "area": "dapur",
+     "kind": "pakai",
+     "qty": 5
+    }
+   ],
+   "expect": {
+    "awal": 24,
+    "masuk": 24,
+    "terjual": 27,
+    "rusakD": 0,
+    "sisaD": 21,
+    "total": 21
+   }
+  }
+ ],
+ "dencis": {
+  "segar": [
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "awal",
+    "qty": 100
+   },
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 30
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 40
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "masuk",
+    "qty": 50
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 30
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 30
+   }
+  ],
+  "goreng": [
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 30
+   },
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 40
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 30
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 30
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "pakai",
+    "qty": 15
+   }
+  ],
+  "sambal": [
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-01",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-02",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-03",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 13
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-04",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 17
+   }
+  ],
+  "bakar": [
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-01",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-01",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 10
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-02",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-02",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 13
+   },
+   {
+    "date": "2026-11-02",
+    "area": "depan",
+    "kind": "rusak",
+    "qty": 1
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-03",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-03",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 16
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "hasil",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-04",
+    "area": "dapur",
+    "kind": "naik",
+    "qty": 15
+   },
+   {
+    "date": "2026-11-04",
+    "area": "depan",
+    "kind": "jual",
+    "qty": 15
+   }
+  ],
+  "expect": {
+   "sisaSegar": 20,
+   "sisaGoreng": 25,
+   "sisaSambal": 0,
+   "sisaBakar": 0,
+   "jualSambal": 50,
+   "jualBakar": 54,
+   "rusakSambal": 0,
+   "rusakBakar": 1
+  }
+ }
+}
