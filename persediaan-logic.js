@@ -206,6 +206,45 @@ export function posSalesBySku(transactions, products, sku, date) {
   return q;
 }
 
+
+// ---------- keterkaitan item persediaan <-> banyak produk kasir ----------
+// item.links = [{ productId, sku, mult }]  (mult = stok item terpakai per 1 produk terjual, default 1)
+// SKU milik item sendiri juga ikut dihitung (mult 1). Data lama (item.productId) tetap terbaca.
+const normS = s => String(s ?? '').trim().toUpperCase();
+export function itemLinks(item, products = []) {
+  if (!item) return [];
+  const out = [], seen = new Set();
+  const push = (product, sku, mult) => {
+    const id = product?.id || '', key = normS(product?.sku || sku);
+    const sig = id ? 'id:' + id : 'sku:' + key;
+    if (!id && !key) return;
+    if (seen.has(sig) || (key && seen.has('sku:' + key))) return;
+    seen.add(sig); if (key) seen.add('sku:' + key);
+    out.push({ productId: id, sku: product?.sku || sku || '', key, mult: Number(mult) > 0 ? Number(mult) : 1, product: product || null });
+  };
+  for (const l of item.links || []) push(products.find(p => p.id === l.productId) || products.find(p => normS(p.sku) && normS(p.sku) === normS(l.sku)) || null, l.sku, l.mult);
+  if (!(item.links || []).length && item.productId) push(products.find(p => p.id === item.productId) || null, '', 1);
+  if (item.sku) push(products.find(p => normS(p.sku) === normS(item.sku)) || null, item.sku, 1);
+  return out;
+}
+// Jumlah stok item terpakai pada 'date' = sum(qty terjual x mult) untuk semua produk yang terhubung.
+export function posSalesForItem(transactions, products, item, date) {
+  const L = itemLinks(item, products);
+  if (!L.length) return 0;
+  const byId = new Map(L.filter(l => l.productId).map(l => [l.productId, l.mult])), byKey = new Map(L.filter(l => l.key).map(l => [l.key, l.mult]));
+  let q = 0;
+  for (const t of transactions || []) {
+    if (t.date !== date) continue;
+    for (const it of t.items || []) {
+      const p = products.find(x => x.id === it.productId);
+      let m = byId.get(it.productId);
+      if (m === undefined) m = byKey.get(normS(it.sku)) ?? byKey.get(normS(p?.sku));
+      if (m !== undefined) q += n(it.qty) * m;
+    }
+  }
+  return q;
+}
+
 // Daftar item contoh (nama & satuan dari file Kontrol Stok). Tanpa angka stok.
 // Catatan: "Dencis" di Excel satu sheet; di sini dipecah menjadi ikan segar → ikan goreng (perantara) → dua menu (sambal, bakar).
 export const SEED_ITEMS = [

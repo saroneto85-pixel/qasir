@@ -3,7 +3,7 @@
 // Depan: kiriman dari dapur (= stok awal depan) → penjualan → sisa.
 // Memakai database, PIN, dan toast dari app.js (lewat window), seperti modul resto.
 import { all, put, del } from './db.js';
-import { AREA, KIND_LABEL, kindsFor, summarizeAll, summarize, dailyCard, posSalesBySku, firstMinus, balanceAt, monthRange, localToday, SEED_ITEMS } from './persediaan-logic.js';
+import { AREA, KIND_LABEL, kindsFor, summarizeAll, summarize, dailyCard, itemLinks, posSalesForItem, firstMinus, balanceAt, monthRange, localToday, SEED_ITEMS } from './persediaan-logic.js';
 
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -15,7 +15,11 @@ const dmy = d => { const p = String(d || '').split('-'); return p.length === 3 ?
 const unitOf = it => (it && it.unit) || '';
 const skuTxt = it => (it && it.sku ? ` · SKU: ${esc(it.sku)}` : '');
 const normSku = v => String(v ?? '').trim().toUpperCase();
-const prodFor = it => (!it ? null : products.find(p => normSku(p.sku) && normSku(p.sku) === normSku(it.sku)) || (it.productId ? products.find(p => p.id === it.productId) : null) || null);
+// Produk 'utama' item: yang ber-SKU sama dengan item, bila tidak ada maka produk pertama yang dihubungkan.
+// Dipakai untuk menambah stok produk saat 'Naik ke depan'. Penjualan memakai SEMUA produk yang terhubung.
+const prodFor = it => (!it ? null : products.find(p => normSku(p.sku) && normSku(p.sku) === normSku(it.sku)) || itemLinks(it, products).find(l => l.product)?.product || null);
+const linksOf = it => itemLinks(it, products);
+const linkText = it => linksOf(it).map(l => `${l.product ? esc(l.product.name) : esc(l.sku)}${l.sku ? ` [${esc(l.sku)}]` : ''}${l.mult !== 1 ? ` ×${num(l.mult)}` : ''}`).join(', ');
 // Ubah stok produk (Kelola Produk). Stok yang belum dilacak dianggap 0 saat pertama kali terisi.
 async function adjustStock(productId, delta) {
   const p = (await all('products')).find(x => x.id === productId);
@@ -162,8 +166,8 @@ function depanHTML() {
   const ids = new Set(fi.map(i => i.id));
   const list = entries.filter(e => ids.has(e.itemId) && e.date >= from && e.date <= to && (e.area === 'depan' || e.kind === 'naik')).sort(sortDesc);
     const actions = `<div class="inv-actions"><button class="outline" onclick="invOpen({area:'depan',kind:'rusak'})">Rusak</button><button class="outline" onclick="invOpen({area:'depan',kind:'awal'})">Stok awal depan</button></div>`;
-  const noSku = fi.filter(i => !(i.sku || prodFor(i)?.sku));
-  const status = `<div class="inv-sync-box"><b>✔ Penjualan tersinkron otomatis dari kasir</b><small>Setiap transaksi dicocokkan lewat SKU/kode dan langsung mengisi kolom Terjual serta mengurangi stok.${lastSync ? ' Diperbarui ' + lastSync + '.' : ''}</small>${noSku.length ? `<small class="warn-text">⚠ Belum ber-SKU (tidak tersinkron): ${noSku.map(i => esc(i.name)).join(', ')}. Isi SKU di Kelola item.</small>` : ''}${unmatchedSold.length ? `<small class="warn-text">ℹ Produk terjual yang belum terhubung ke item persediaan: ${unmatchedSold.slice(0, 6).map(esc).join(', ')}${unmatchedSold.length > 6 ? ' dll.' : ''}.</small>` : ''}</div>`;
+  const noSku = fi.filter(i => !linksOf(i).length);
+  const status = `<div class="inv-sync-box"><b>✔ Penjualan tersinkron otomatis dari kasir</b><small>Setiap transaksi dicocokkan lewat SKU/kode (satu item bisa terhubung ke beberapa produk) dan langsung mengisi kolom Terjual serta mengurangi stok.${lastSync ? ' Diperbarui ' + lastSync + '.' : ''}</small>${noSku.length ? `<small class="warn-text">⚠ Belum terhubung ke produk/SKU (tidak tersinkron): ${noSku.map(i => esc(i.name)).join(', ')}. Hubungkan di Kelola item.</small>` : ''}${unmatchedSold.length ? `<small class="warn-text">ℹ Produk terjual yang belum terhubung ke item persediaan: ${unmatchedSold.slice(0, 6).map(esc).join(', ')}${unmatchedSold.length > 6 ? ' dll.' : ''}.</small>` : ''}</div>`;
   const hint = '<p class="inv-note">Naik dari dapur otomatis menjadi stok depan dan menambah stok produk (dicocokkan lewat SKU). Terjual diambil otomatis dari kasir lewat SKU dan mengurangi stok produk. Sisa sore otomatis menjadi stok awal hari berikutnya.</p>';
   return actions + status + `<div class="panel exp-panel inv-panel"><div class="panel-head"><h2>Posisi stok depan</h2><small>${dmy(from)} – ${dmy(to)}</small></div><div class="pad">${fi.length ? pos + hiddenNote(rows, shownF) : '<div class="empty">Belum ada item yang punya bagian depan. Centang “Ada bagian depan” saat menambah item.</div>'}</div></div>
     <div class="panel exp-panel inv-panel"><div class="panel-head"><h2>Catatan depan</h2><small>${list.length} catatan</small></div><div class="pad">${entryList(list, true)}</div></div>` + hint;
@@ -228,7 +232,7 @@ function fillKinds(keep) {
 }
 function fillHint() {
   const it = itemById($('ieItem').value), date = $('ieDate').value;
-  if ($('ieSku')) { const pr = prodFor(it); $('ieSku').textContent = it ? (it.sku ? `SKU/kode: ${it.sku}` + (pr ? ` → produk ${pr.name} (stok ${pr.stock ?? 'tidak dilacak'})` : ' (belum cocok dengan produk)') : 'SKU belum diisi di Kelola item') : ''; }
+  if ($('ieSku')) { const ls = linksOf(it); $('ieSku').textContent = it ? (ls.length ? `Terhubung ke: ${ls.map(l => (l.product?.name || l.sku) + (l.sku ? ' [' + l.sku + ']' : '') + (l.mult !== 1 ? ' ×' + num(l.mult) : '')).join(', ')}` : 'Belum terhubung ke produk (isi di Kelola item)') : ''; }
   if (!it || !date) { $('ieHint').textContent = ''; return; }
   const b = balanceAt(it, entries.filter(e => e.id !== $('ieId').value), date), u = unitOf(it);
   const kind = $('ieKind').value;
@@ -340,14 +344,34 @@ async function deleteEntry(id) {
 }
 
 // ---------- kelola item ----------
+// ---------- pilih beberapa produk kasir untuk satu item ----------
+let linkSel = new Map(); // productId -> mult
+function renderLinkPicker() {
+  const q = ($('iiLinkSearch')?.value || '').trim().toLowerCase();
+  const list = products.filter(p => !q || p.name.toLowerCase().includes(q) || normSku(p.sku).toLowerCase().includes(q));
+  $('iiLinks').innerHTML = list.length ? list.map(p => { const on = linkSel.has(p.id); return `<div class="ii-link${on ? ' on' : ''}"><label><input type="checkbox" data-pid="${esc(p.id)}"${on ? ' checked' : ''}><span><b>${esc(p.name)}</b><small>SKU: ${esc(p.sku || '—')}</small></span></label><span class="ii-mult"${on ? '' : ' hidden'}>×<input type="number" min="0.01" step="any" inputmode="decimal" value="${linkSel.get(p.id) ?? 1}" data-mult="${esc(p.id)}" aria-label="Stok terpakai per 1 ${esc(p.name)}"></span></div>`; }).join('') : '<div class="empty">Produk tidak ditemukan.</div>';
+  $('iiLinkCount').textContent = linkSel.size ? `${linkSel.size} produk dipilih` : 'Belum ada produk dipilih';
+}
+function bindLinkPicker() {
+  $('iiLinkSearch').oninput = renderLinkPicker;
+  $('iiLinks').addEventListener('change', e => {
+    const cb = e.target.closest('[data-pid]'), mu = e.target.closest('[data-mult]');
+    if (cb) {
+      const id = cb.dataset.pid, p = products.find(x => x.id === id);
+      if (cb.checked) { linkSel.set(id, 1); if (p && linkSel.size === 1) { if (!$('iiName').value.trim()) $('iiName').value = p.name; if (!$('iiSku').value.trim()) $('iiSku').value = p.sku || ''; } } else linkSel.delete(id);
+      renderLinkPicker();
+    } else if (mu) { const v = Number(mu.value); linkSel.set(mu.dataset.mult, v > 0 ? v : 1); }
+  });
+}
 async function renderItemList() {
-  const plist = await all('products');
-  $('iiProduct').innerHTML = '<option value="">— Tidak terhubung —</option>' + plist.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.sku ? ` [${esc(p.sku)}]` : ''}</option>`).join('');
-  $('iiList').innerHTML = items.length ? items.map(i => `<div class="master-expense-row"><div class="mrow-head"><b>${esc(i.name)}</b><span class="chip">SKU: ${esc(i.sku || '—')}</span><span class="chip">${esc(unitOf(i) || 'satuan —')}</span><span class="gbadge ${i.hasDepan ? 'g-oper' : 'g-bahan'}">${i.hasDepan ? 'Dapur + Depan' : 'Dapur saja'}</span><button type="button" class="link" onclick="invEditItem('${i.id}')">Edit</button><button type="button" class="link danger-link" onclick="invDelItem('${i.id}')">Hapus</button></div>${(() => { const pr = prodFor(i); return `<small>${pr ? 'Terhubung ke produk: ' + esc(pr.name) : 'SKU belum cocok dengan produk di Kelola Produk'}</small>`; })()}</div>`).join('') : '<div class="empty">Belum ada item.</div>';
+  products = await all('products');
+  renderLinkPicker();
+  $('iiList').innerHTML = items.length ? items.map(i => `<div class="master-expense-row"><div class="mrow-head"><b>${esc(i.name)}</b><span class="chip">SKU: ${esc(i.sku || '—')}</span><span class="chip">${esc(unitOf(i) || 'satuan —')}</span><span class="gbadge ${i.hasDepan ? 'g-oper' : 'g-bahan'}">${i.hasDepan ? 'Dapur + Depan' : 'Dapur saja'}</span><button type="button" class="link" onclick="invEditItem('${i.id}')">Edit</button><button type="button" class="link danger-link" onclick="invDelItem('${i.id}')">Hapus</button></div><small>${linksOf(i).length ? 'Terhubung ke ' + linksOf(i).length + ' produk: ' + linkText(i) : 'Belum terhubung ke produk kasir (penjualan tidak tersinkron)'}</small></div>`).join('') : '<div class="empty">Belum ada item.</div>';
 }
 async function openItems() {
   await load();
   $('iiId').value = ''; $('iiName').value = ''; $('iiSku').value = ''; $('iiUnit').value = ''; $('iiDepan').checked = true; $('iiSave').textContent = 'Tambah item';
+  linkSel = new Map(); $('iiLinkSearch').value = '';
   await renderItemList();
   if (!$('invItemDialog').open) $('invItemDialog').showModal();
 }
@@ -358,10 +382,12 @@ async function saveItem(e) {
   const id = $('iiId').value;
   if (items.some(i => i.id !== id && i.name.toLowerCase() === name.toLowerCase())) return toast('Nama item sudah ada');
   const old = id ? itemById(id) : null;
-  let sku = $('iiSku').value.trim(); const pid = $('iiProduct').value || '';
-  if (!sku && pid) sku = (await all('products')).find(p => p.id === pid)?.sku || '';
+  let sku = $('iiSku').value.trim();
+  products = await all('products');
+  const links = [...linkSel].map(([productId, mult]) => ({ productId, sku: products.find(p => p.id === productId)?.sku || '', mult: Number(mult) > 0 ? Number(mult) : 1 }));
   if (sku && items.some(i => i.id !== id && normSku(i.sku) === normSku(sku))) return toast('SKU sudah dipakai item persediaan lain');
-  await put('invItems', { ...(old || {}), id: id || uid(), name, sku, unit: $('iiUnit').value.trim(), hasDepan: $('iiDepan').checked, productId: pid, createdAt: old?.createdAt || Date.now() });
+  if (!sku && links.length) { const cand = links[0].sku; if (cand && !items.some(i => i.id !== id && normSku(i.sku) === normSku(cand))) sku = cand; }
+  await put('invItems', { ...(old || {}), id: id || uid(), name, sku, unit: $('iiUnit').value.trim(), hasDepan: $('iiDepan').checked, productId: '', links, createdAt: old?.createdAt || Date.now() });
   await openItems();
   await renderInventory();
   toast(id ? 'Item diperbarui' : 'Item ditambahkan');
@@ -370,7 +396,7 @@ async function editItem(id) {
   if (!await askPin('mengubah item persediaan')) return;
   const i = itemById(id);
   if (!i) return;
-  $('iiId').value = i.id; $('iiName').value = i.name; $('iiSku').value = i.sku || ''; $('iiUnit').value = i.unit || ''; $('iiDepan').checked = !!i.hasDepan; $('iiProduct').value = i.productId || ''; $('iiSave').textContent = 'Simpan perubahan';
+  $('iiId').value = i.id; $('iiName').value = i.name; $('iiSku').value = i.sku || ''; $('iiUnit').value = i.unit || ''; $('iiDepan').checked = !!i.hasDepan; linkSel = new Map(itemLinks(i, products).filter(l => l.productId).map(l => [l.productId, l.mult])); $('iiLinkSearch').value = ''; renderLinkPicker(); $('iiSave').textContent = 'Simpan perubahan';
   $('iiName').focus();
 }
 async function deleteItem(id) {
@@ -402,10 +428,10 @@ async function writeSales(dates, txs) {
   txs = txs || await all('transactions'); products = await all('products');
   let n = 0;
   for (const it of items.filter(i => i.hasDepan)) {
-    const sku = it.sku || prodFor(it)?.sku;
+    const linked = linksOf(it).length > 0;
     for (const date of dates) {
-      const id = `kasir-${it.id}-${date}`, ex = entries.find(x => x.id === id), q = sku ? posSalesBySku(txs, products, sku, date) : 0;
-      if (q > 0) { if (!ex || ex.qty !== q) { await put('invEntries', { id, date, itemId: it.id, area: 'depan', kind: 'jual', qty: q, note: 'Dari transaksi kasir (SKU)', source: 'kasir', createdAt: ex?.createdAt || Date.now() }); n++; } }
+      const id = `kasir-${it.id}-${date}`, ex = entries.find(x => x.id === id), q = linked ? posSalesForItem(txs, products, it, date) : 0;
+      if (q > 0) { if (!ex || ex.qty !== q) { await put('invEntries', { id, date, itemId: it.id, area: 'depan', kind: 'jual', qty: q, note: 'Dari transaksi kasir (SKU, ' + (linksOf(it).length > 1 ? linksOf(it).length + ' produk terhubung' : 'terhubung') + ')', source: 'kasir', createdAt: ex?.createdAt || Date.now() }); n++; } }
       else if (ex) { await del('invEntries', id); n++; }
     }
   }
@@ -420,9 +446,10 @@ async function autoSync() {
     const monthTx = txs.filter(t => String(t.date).startsWith(month));
     const dates = [...new Set([...monthTx.map(t => t.date), ...entries.filter(e => e.source === 'kasir' && String(e.date).startsWith(month)).map(e => e.date)])];
     if (await writeSales(dates, txs)) entries = await all('invEntries');
-    const skus = new Set(items.filter(i => i.hasDepan).map(i => normSku(i.sku || prodFor(i)?.sku)).filter(Boolean));
+    const ids = new Set(), keys = new Set();
+    for (const it of items.filter(i => i.hasDepan)) for (const l of linksOf(it)) { if (l.productId) ids.add(l.productId); if (l.key) keys.add(l.key); }
     const un = new Set();
-    for (const t of monthTx) for (const l of t.items || []) { const p = products.find(x => x.id === l.productId), k = normSku(l.sku || p?.sku); if (!skus.has(k) && !(p && skus.has(normSku(p.sku)))) un.add(l.name); }
+    for (const t of monthTx) for (const l of t.items || []) { const p = products.find(x => x.id === l.productId); if (!(ids.has(l.productId) || keys.has(normSku(l.sku)) || (p && keys.has(normSku(p.sku))))) un.add(l.name); }
     unmatchedSold = [...un];
     lastSync = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   } catch (err) { console.warn('Sinkron penjualan gagal', err); }
@@ -446,7 +473,7 @@ function bind() {
     await put('settings', { ...s, id: 'main', invLowDays: v });
     await renderInventory();
   };
-  $('iiProduct').onchange = async () => { const p = (await all('products')).find(x => x.id === $('iiProduct').value); if (p) { $('iiSku').value = p.sku || ''; if (!$('iiName').value.trim()) $('iiName').value = p.name; } };
+  bindLinkPicker();
   $('ioOut').onchange = showOlahSku;
   $('invManage').onclick = openItems;
   $('invEntryForm').addEventListener('submit', e => e.preventDefault());
@@ -457,7 +484,7 @@ function bind() {
   $('ieDate').onchange = fillHint;
   $('ioSave').onclick = saveOlah;
   $('iiSave').onclick = saveItem;
-  $('iiReset').onclick = () => { $('iiId').value = ''; $('iiSku').value = ''; $('iiName').value = ''; $('iiUnit').value = ''; $('iiDepan').checked = true; $('iiProduct').value = ''; $('iiSave').textContent = 'Tambah item'; };
+  $('iiReset').onclick = () => { $('iiId').value = ''; $('iiSku').value = ''; $('iiName').value = ''; $('iiUnit').value = ''; $('iiDepan').checked = true; linkSel = new Map(); renderLinkPicker(); $('iiSave').textContent = 'Tambah item'; };
   $('iiSeed').onclick = seedItems;
 }
 bind();

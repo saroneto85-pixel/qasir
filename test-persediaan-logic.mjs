@@ -45,4 +45,19 @@ assert.equal(firstMinus(it, [...ev, { id: 'd', itemId: 'x', area: 'depan', kind:
 ok += 3;
 
 console.log(`\n${ok} pemeriksaan cocok dengan Excel${fail ? `, ${fail} BERBEDA` : ''}`);
+// --- satu item terhubung ke beberapa produk (rendang: nasi bungkus, paket, topping)
+{
+  const { itemLinks, posSalesForItem } = await import('./persediaan-logic.js');
+  const prods = [{ id: 'a', sku: 'NBR-01', name: 'Nasi bungkus rendang' }, { id: 'b', sku: 'PKR-01', name: 'Paket rendang' }, { id: 'c', sku: 'TPR-01', name: 'Topping rendang' }, { id: 'd', sku: 'EST-01', name: 'Es teh' }];
+  const item = { id: 'r', name: 'Rendang', sku: 'NBR-01', links: [{ productId: 'a', mult: 1 }, { productId: 'b', mult: 2 }, { productId: 'c', mult: 1 }] };
+  const tx = [{ date: '2026-11-25', items: [{ productId: 'a', sku: 'NBR-01', qty: 3 }, { productId: 'b', sku: 'PKR-01', qty: 2 }, { productId: 'c', sku: 'TPR-01', qty: 4 }, { productId: 'd', sku: 'EST-01', qty: 9 }] }, { date: '2026-11-24', items: [{ productId: 'a', qty: 50 }] }];
+  const eq = (a, b, m) => { if (a !== b) { console.error('GAGAL', m, a, b); process.exit(1); } };
+  eq(itemLinks(item, prods).length, 3, 'SKU item = produk a tidak boleh ganda');
+  eq(posSalesForItem(tx, prods, item, '2026-11-25'), 3 + 2 * 2 + 4, '3 produk terhubung (paket x2), es teh tidak ikut');
+  eq(posSalesForItem(tx, prods, item, '2026-11-24'), 50, 'tanggal lain terpisah');
+  eq(posSalesForItem([{ date: '2026-11-25', items: [{ productId: 'b', sku: 'LAMA', qty: 1 }] }], [{ id: 'b', sku: 'PKR-02' }], { links: [{ productId: 'b', mult: 2 }] }, '2026-11-25'), 2, 'SKU produk diganti: tetap cocok lewat productId');
+  eq(posSalesForItem(tx, prods, { id: 'x', productId: 'd' }, '2026-11-25'), 9, 'data lama (productId tunggal) tetap terbaca');
+  eq(posSalesForItem(tx, prods, { id: 'y', name: 'Tanpa tautan' }, '2026-11-25'), 0, 'tanpa tautan = 0');
+  console.log('✓ item terhubung ke banyak produk: 6 pemeriksaan');
+}
 process.exit(fail ? 1 : 0);
