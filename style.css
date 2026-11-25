@@ -289,3 +289,15 @@ body:has(#transaction.active) .bottom-transaction{display:none!important}
 .ii-link label{display:flex;align-items:center;gap:10px;flex:1;min-width:0;margin:0;font-weight:500}.ii-link label input{width:20px;height:20px;flex:none}
 .ii-link label span{min-width:0}.ii-link label b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ii-link label small{display:block;color:var(--muted);font-size:11px}
 .ii-mult{display:flex;align-items:center;gap:4px;font-weight:700}.ii-mult input{width:64px;padding:6px 8px}
+/* ===== KASIR 2.5.0: edit transaksi ===== */
+dialog.tx-edit{max-height:94vh;overflow-y:auto}
+.tx-edit label{display:block;margin-bottom:10px;font-weight:600;font-size:13px}.tx-edit label input,.tx-edit label select{display:block;width:100%;margin-top:5px}
+.tx-edit .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.te-box{border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0 12px;display:grid;gap:8px;background:#fafcfa}
+.te-row{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}.te-row:last-child{border-bottom:0}
+.te-name b{display:block;font-size:14px}.te-ctl{display:flex;align-items:center;gap:4px}.te-ctl button{width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:18px;line-height:1}
+.te-ctl .te-qty{width:62px;text-align:center;margin:0;padding:6px 4px}.te-price{display:flex!important;align-items:center;gap:6px;margin:0!important;font-weight:500!important}.te-price input{margin:0!important;width:110px!important}
+.te-row .danger-link{justify-self:end}
+.te-add{display:grid;grid-template-columns:1fr auto;gap:8px}.te-add select{margin:0}
+.te-sum{margin:8px 0}.te-menu{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.te-menu .grow{flex:1}
+.outline.danger{color:#b3261e;border-color:#e6b8b4}
