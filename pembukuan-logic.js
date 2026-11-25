@@ -13,6 +13,8 @@ export const BK_DEFAULTS = {
   kas: 0, persediaan: 0, peralatan: 0, akum: 0, hutang: 0,
   rentYear: 0, rentStart: '', life: 8, residualPct: 0, taxPct: 0,
   tFood: 0.35, tSalary: 0.25, tMargin: 0.10, tSales: 0,
+  tHppVar: 0.10, // batas selisih HPP aktual vs standar (10%)
+  stockEnd: {},  // nilai persediaan akhir per bulan { 'YYYY-MM': rupiah } hasil stok opname
 };
 
 const n = v => Number(v) || 0;
@@ -54,7 +56,8 @@ export const normSku = s => String(s ?? '').trim().toUpperCase();
 export function normOpening(raw = {}) {
   const o = { ...BK_DEFAULTS, ...raw };
   if (raw.kas === undefined && (raw.cash !== undefined || raw.bank !== undefined)) o.kas = n(raw.cash) + n(raw.bank); // migrasi data lama
-  for (const k of ['kas', 'persediaan', 'peralatan', 'akum', 'hutang', 'rentYear', 'life', 'residualPct', 'taxPct', 'tFood', 'tSalary', 'tMargin', 'tSales']) o[k] = n(o[k]);
+  for (const k of ['kas', 'persediaan', 'peralatan', 'akum', 'hutang', 'rentYear', 'life', 'residualPct', 'taxPct', 'tFood', 'tSalary', 'tMargin', 'tSales', 'tHppVar']) o[k] = n(o[k]);
+  o.stockEnd = raw.stockEnd && typeof raw.stockEnd === 'object' ? { ...raw.stockEnd } : {};
   if (!(o.life > 0)) o.life = BK_DEFAULTS.life;
   o.date = o.date || '';
   return o;
@@ -88,8 +91,36 @@ export function debtStatus(x, today = localToday()) {
 }
 
 // ---------- kelompok pengeluaran ----------
-export const defaultExpenseGroup = t => (t === 'Bahan baku' ? 'bahan' : t === 'Gaji' ? 'gaji' : 'operasional');
+// Kelompok: bahan + operasional = HPP (pembelian); gaji; beban = Utilitas, Transportasi & beban usaha lain (di luar HPP).
+export const defaultExpenseGroup = t => (t === 'Bahan baku' ? 'bahan' : t === 'Gaji' ? 'gaji' : t === 'Utilitas' || t === 'Transportasi' ? 'beban' : 'operasional');
 export const groupOf = (e, groups = {}) => groups[e.type] || defaultExpenseGroup(e.type);
+
+// ---------- persediaan (nilai Rp) untuk HPP aktual ----------
+// HPP aktual = persediaan awal + pembelian (bahan + operasional) - persediaan akhir.
+// Persediaan awal bulan = persediaan akhir bulan sebelumnya (bila belum diisi, dibawa dari bulan terakhir yang terisi,
+// atau dari Neraca Awal). Bila persediaan akhir belum diisi, dianggap tidak berubah (HPP = pembelian).
+export function stockOpening(o, ym) {
+  const start = ymOf(o.date);
+  if (!start || ymIdx(ym) <= ymIdx(start)) return n(o.persediaan);
+  for (let i = ymIdx(ym) - 1; i >= ymIdx(start); i--) { const v = o.stockEnd[idxYm(i)]; if (v !== undefined && v !== null && v !== '') return n(v); }
+  return n(o.persediaan);
+}
+export function stockClose(o, ym) {
+  const v = o.stockEnd[ym];
+  return v !== undefined && v !== null && v !== '' ? n(v) : stockOpening(o, ym);
+}
+export const stockClosed = (o, ym) => { const v = o.stockEnd[ym]; return v !== undefined && v !== null && v !== ''; };
+
+// Selisih HPP aktual vs HPP standar (HPP produk x terjual). Batas peringatan = o.tHppVar (default 10%).
+export function hppVariance(p, threshold = 0.10) {
+  if (!(p.hppStandar > 0)) return { status: 'na', pct: 0, text: 'Belum ada HPP standar (isi HPP produk di Kelola Produk)' };
+  if (p.hppCoverage < 0.8) return { status: 'na', pct: p.selisihPct, text: `HPP produk baru terisi untuk ${Math.round(p.hppCoverage * 100)}% penjualan; lengkapi HPP produk agar pembanding akurat` };
+  const pct = p.selisihPct, a = Math.abs(pct) * 100, lim = Math.round(threshold * 100);
+  if (Math.abs(pct) <= threshold) return { status: 'ok', pct, text: `Wajar: selisih HPP ${a.toLocaleString('id-ID', { maximumFractionDigits: 1 })}% (batas ${lim}%)` };
+  return pct > 0
+    ? { status: 'warn', pct, text: `Perhatian: HPP aktual ${a.toLocaleString('id-ID', { maximumFractionDigits: 1 })}% di atas HPP standar (batas ${lim}%). Cek pemborosan, bahan rusak, atau kenaikan harga bahan` }
+    : { status: 'warn', pct, text: `Perhatian: HPP aktual ${a.toLocaleString('id-ID', { maximumFractionDigits: 1 })}% di bawah HPP standar (batas ${lim}%). HPP produk mungkin terlalu tinggi, atau persediaan akhir belum diisi` };
+}
 
 // ---------- laba rugi (sheet "Laba Rugi") untuk rentang tanggal ----------
 export function pnl(d, from, to) {
@@ -109,20 +140,29 @@ export function pnl(d, from, to) {
   const g = d.groups || {};
   r.bahan = sum(ex.filter(x => groupOf(x, g) === 'bahan'), x => n(x.amount));
   r.operasional = sum(ex.filter(x => groupOf(x, g) === 'operasional'), x => n(x.amount));
-  r.hpp = r.bahan + r.operasional; // Excel: HPP = pembelian bahan + operasional (tanpa gaji)
-  r.labaKotor = r.bersih - r.hpp;
-  r.marginKotor = r.bersih ? r.labaKotor / r.bersih : 0;
+  r.hppBeli = r.bahan + r.operasional; // pembelian: bahan baku + operasional langsung (tanpa gaji, utilitas, transportasi)
+  r.bebanLain = sum(ex.filter(x => groupOf(x, g) === 'beban'), x => n(x.amount)); // Utilitas, Transportasi, dst (di luar HPP)
   r.gaji = sum(ex.filter(x => groupOf(x, g) === 'gaji'), x => n(x.amount));
   const months = rangeMonths(from, to);
+  r.perubahanStok = sum(months, m => (stockOpening(o, m.ym) - stockClose(o, m.ym)) * m.frac); // + bila stok turun (bahan terpakai dari persediaan)
+  r.hpp = r.hppBeli + r.perubahanStok;
+  r.labaKotor = r.bersih - r.hpp;
+  r.marginKotor = r.bersih ? r.labaKotor / r.bersih : 0;
   r.sewa = o.rentYear ? sum(months, m => (o.rentYear / 12) * m.frac) : 0;
   r.penyusutan = sum(months, m => sum(d.assets || [], a => assetDepInMonth(a, m.ym) * m.frac));
-  r.beban = r.gaji + r.sewa + r.penyusutan;
+  r.beban = r.gaji + r.bebanLain + r.sewa + r.penyusutan;
   r.labaSebelumPajak = r.labaKotor - r.beban;
   r.pajak = r.bruto * (o.taxPct / 100);
   r.labaBersih = r.labaSebelumPajak - r.pajak;
   r.marginBersih = r.bersih ? r.labaBersih / r.bersih : 0;
   r.foodCost = r.bersih ? r.hpp / r.bersih : 0;
   r.gajiPct = r.bersih ? r.gaji / r.bersih : 0;
+  // HPP standar = HPP satuan produk (Kelola Produk, tersimpan di baris transaksi) x jumlah terjual
+  let std = 0, valAll = 0, valCost = 0;
+  for (const t of tx) for (const it of t.items || []) { const v = n(it.price) * n(it.qty); valAll += v; if (n(it.costPrice) > 0) valCost += v; std += n(it.costPrice) * n(it.qty); }
+  r.hppStandar = std; r.hppCoverage = valAll ? valCost / valAll : 0;
+  r.selisihHpp = r.hpp - std; r.selisihPct = std ? r.selisihHpp / std : 0;
+  r.labaKotorStandar = r.bersih - std;
   r.breakEven = r.marginKotor > 0 ? r.beban / r.marginKotor : 0;
   return r;
 }
@@ -219,8 +259,11 @@ export function pembukuan(d, ym, today = localToday()) {
   }
   saldoNow < 0 ? add('warn', 'Perhatian: saldo kas negatif') : add('ok', 'Aman: saldo kas positif');
   if (nr.sisaHari !== null) nr.sisaHari <= 90 ? add('warn', `Perhatian: sewa jatuh tempo ${nr.sisaHari} hari lagi`) : add('ok', `Aman: sewa masih ${nr.sisaHari} hari`);
+  const hv = hppVariance(p, o.tHppVar);
+  if (hv.status !== 'na') add(hv.status === 'ok' ? 'ok' : 'warn', hv.text); else if (p.bersih) add('muted', hv.text);
+  if (p.hppBeli && !stockClosed(o, ym)) add('muted', 'Persediaan akhir bulan belum diisi: HPP dianggap sama dengan pembelian');
   ds.sisaHutang > 0 ? add('warn', `Perhatian: ada hutang supplier ${rupiah(ds.sisaHutang)}`) : add('ok', 'Aman: tidak ada hutang supplier');
-  return { ym, p, cash, saldoNow, ...ds, neraca: nr, warn, nilaiStok: stockValue(d.products) };
+  return { ym, p, cash, saldoNow, ...ds, neraca: nr, warn, hv, stokAwal: stockOpening(o, ym), stokAkhir: stockClose(o, ym), stokAkhirTerisi: stockClosed(o, ym), nilaiStok: stockValue(d.products) };
 }
 
 // ---------- Evaluasi Usaha ----------
@@ -234,7 +277,10 @@ export function evaluasi(d, ym, today = localToday()) {
     { key: 'avg', label: 'Rata-rata nilai per transaksi', value: p.avgTrx, fmt: 'rp', status: '-', hint: 'Penjualan bersih dibagi jumlah transaksi; naikkan lewat paket/menu tambahan.' },
     { key: 'hari', label: 'Rata-rata penjualan bersih per hari buka', value: p.hariBuka ? p.bersih / p.hariBuka : 0, fmt: 'rp', status: '-', hint: 'Penjualan bersih dibagi jumlah hari yang ada penjualannya.' },
     { key: 'mk', label: 'Margin laba kotor', value: p.marginKotor, fmt: 'pct', status: '-', hint: 'Laba kotor dibagi penjualan bersih.' },
-    { key: 'food', label: 'Food cost (HPP / penjualan bersih)', value: p.foodCost, fmt: 'pct', target: o.tFood, status: st(none, p.foodCost <= o.tFood, 'Baik', 'Perlu perhatian'), hint: 'HPP dibagi penjualan bersih; makin kecil makin baik.' },
+    { key: 'hppA', label: 'HPP aktual (pembelian ± perubahan persediaan)', value: p.hpp, fmt: 'rp', status: '-', hint: 'Persediaan awal + belanja bahan & operasional − persediaan akhir.' },
+    { key: 'hppS', label: 'HPP standar (HPP produk × terjual)', value: p.hppStandar, fmt: 'rp', status: '-', hint: 'Dari HPP satuan di Kelola Produk.' },
+    { key: 'hppV', label: 'Selisih HPP aktual vs standar', value: p.selisihPct, fmt: 'pct', target: o.tHppVar, status: b.hv.status === 'ok' ? 'Wajar' : b.hv.status === 'warn' ? 'Perlu perhatian' : '-', hint: 'Di atas batas = cek pemborosan/kenaikan harga bahan; di bawah batas negatif = HPP produk terlalu tinggi atau stok akhir belum diisi.' },
+    { key: 'food', label: 'Food cost (HPP aktual / penjualan bersih)', value: p.foodCost, fmt: 'pct', target: o.tFood, status: st(none, p.foodCost <= o.tFood, 'Baik', 'Perlu perhatian'), hint: 'HPP dibagi penjualan bersih; makin kecil makin baik.' },
     { key: 'gaji', label: 'Beban gaji / penjualan bersih', value: p.gajiPct, fmt: 'pct', target: o.tSalary, status: st(none, p.gajiPct <= o.tSalary, 'Baik', 'Perlu perhatian'), hint: 'Gaji dibagi penjualan bersih.' },
     { key: 'mb', label: 'Margin laba bersih', value: p.marginBersih, fmt: 'pct', target: o.tMargin, status: st(none, p.marginBersih >= o.tMargin, 'Baik', 'Perlu perhatian'), hint: 'Laba bersih dibagi penjualan bersih; makin besar makin baik.' },
     { key: 'be', label: 'Titik impas penjualan bersih / bulan', value: p.breakEven, fmt: 'rp', status: st(none, p.bersih >= p.breakEven, 'Di atas titik impas', 'Di bawah titik impas'), hint: 'Penjualan minimum agar tidak rugi.' },

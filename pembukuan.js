@@ -4,7 +4,7 @@ import * as BK from './pembukuan-logic.js';
 
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const rp = v => 'Rp' + Math.round(Number(v) || 0).toLocaleString('id-ID');
+const rp = v => { const x = Math.round(Number(v) || 0); return (x < 0 ? '-' : '') + 'Rp' + Math.abs(x).toLocaleString('id-ID'); };
 const pc = v => ((Number(v) || 0) * 100).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '%';
 const num = v => (Number(v) || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
 const toast = s => window.toast?.(s);
@@ -16,8 +16,8 @@ const data = () => window.bookData();
 
 // ---------- Neraca Awal ----------
 const F = { nrDate: 'date', nrKas: 'kas', nrPersediaan: 'persediaan', nrPeralatan: 'peralatan', nrAkum: 'akum', nrHutang: 'hutang', nrNote: 'note', nrRentYear: 'rentYear', nrRentStart: 'rentStart', nrLife: 'life', nrTSales: 'tSales' };
-const PCT = { nrResidual: 'residualPct', nrTax: 'taxPct', nrTFood: 'tFood', nrTSalary: 'tSalary', nrTMargin: 'tMargin' }; // tampil sebagai %, simpan: residual/tax dalam %, target dalam pecahan
-const FRAC = new Set(['tFood', 'tSalary', 'tMargin']);
+const PCT = { nrResidual: 'residualPct', nrTax: 'taxPct', nrTFood: 'tFood', nrTSalary: 'tSalary', nrTMargin: 'tMargin', nrTHppVar: 'tHppVar' }; // tampil sebagai %, simpan: residual/tax dalam %, target dalam pecahan
+const FRAC = new Set(['tFood', 'tSalary', 'tMargin', 'tHppVar']);
 
 function readForm() {
   const o = {};
@@ -71,22 +71,34 @@ async function renderPembukuan() {
     const rows = [
       R('Penjualan bruto', rp(p.bruto), 'Tunai + non-tunai + tempo sebelum diskon'), R('Penjualan bersih', rp(p.bersih), 'Setelah diskon'),
       R('Jumlah transaksi', num(p.trx), 'Dari menu Transaksi'), R('Rata-rata per transaksi', rp(p.avgTrx), 'Penjualan bersih ÷ transaksi'),
-      R('HPP (belanja bahan + operasional)', rp(p.hpp), 'Dari menu Pengeluaran'), R('Laba kotor', rp(p.labaKotor), 'Penjualan bersih − HPP', 'sub'),
-      R('Gaji & tunjangan', rp(p.gaji), 'Pengeluaran kelompok Gaji'), R('Total beban operasional', rp(p.beban), 'Gaji, sewa, penyusutan'),
+      R('Pembelian bahan + operasional langsung', rp(p.hppBeli), 'Menu Pengeluaran (kelompok Bahan & Operasional)'),
+      R('Perubahan persediaan', rp(p.perubahanStok), b.stokAkhirTerisi ? `Awal ${rp(b.stokAwal)} → akhir ${rp(b.stokAkhir)}` : 'Persediaan akhir belum diisi (dianggap tetap)'),
+      R('HPP aktual', rp(p.hpp), 'Pembelian ± perubahan persediaan'), R('HPP standar (HPP produk × terjual)', rp(p.hppStandar), 'Dari Kelola Produk'),
+      R('Selisih HPP aktual vs standar ' + (b.hv.status === 'warn' ? '<span class="status bad">Perlu perhatian</span>' : b.hv.status === 'ok' ? '<span class="status good">Wajar</span>' : '<span class="status">Belum dinilai</span>'), `${rp(p.selisihHpp)} (${pc(p.selisihPct)})`, `Batas ±${Math.round(o.tHppVar * 100)}%`),
+      R('Laba kotor', rp(p.labaKotor), 'Penjualan bersih − HPP aktual', 'sub'),
+      R('Gaji & tunjangan', rp(p.gaji), 'Pengeluaran kelompok Gaji'), R('Utilitas, transportasi & beban lain', rp(p.bebanLain), 'Di luar HPP'), R('Total beban operasional', rp(p.beban), 'Gaji, utilitas/transport, sewa, penyusutan'),
       R('Laba bersih', rp(p.labaBersih), 'Setelah beban & pajak', 'tot'),
       R('Kas masuk bulan ini', rp(b.cash.in), 'Dari Buku Kas'), R('Kas keluar bulan ini', rp(b.cash.out), 'Dari Buku Kas'), R('Arus kas bersih', rp(b.cash.in - b.cash.out), 'Masuk − keluar', 'sub'),
       R('Saldo kas & bank saat ini', rp(b.saldoNow), 'Cocokkan dengan uang fisik + rekening'), R('Nilai stok produk', rp(b.nilaiStok), 'Stok × HPP satuan'),
       R('Sisa hutang supplier', rp(b.sisaHutang), 'Dari Hutang & Piutang'), R('Piutang + kasbon', rp(b.sisaPiutang), 'Dari Hutang & Piutang'),
       R('Sewa jatuh tempo', b.neraca.sisaHari === null ? '—' : b.neraca.sisaHari + ' hari lagi', 'Dari Neraca Awal'),
     ];
-    $('bkBody').innerHTML = note + `<div class="bk-grid"><div class="panel"><div class="panel-head"><h2>Indikator ${label(ym)}</h2></div><div class="table-wrap"><table class="bk-table"><thead><tr><th>Indikator</th><th class="num">Nilai</th><th>Keterangan</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></div>
+    $('bkBody').innerHTML = note + `<div class="bk-grid"><div class="panel"><div class="panel-head"><h2>Indikator ${label(ym)}</h2></div><div class="table-wrap"><table class="bk-table bk-ind"><thead><tr><th>Indikator</th><th class="num">Nilai</th><th>Keterangan</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></div>
+      <div class="side-stack"><div class="panel"><div class="panel-head"><h2>Persediaan akhir ${label(ym)}</h2></div>
+        <p class="muted small">Isi nilai stok bahan hasil hitung fisik (stok opname) di akhir bulan agar HPP mencerminkan bahan yang benar-benar terpakai. Kosongkan bila tidak dihitung.</p>
+        <div class="kv"><span>Persediaan awal bulan</span><b>${rp(b.stokAwal)}</b></div>
+        <label class="bk-stock">Persediaan akhir (Rp)<input type="number" id="bkStockEnd" min="0" step="any" inputmode="decimal" value="${b.stokAkhirTerisi ? Math.round(b.stokAkhir) : ''}" placeholder="${Math.round(b.stokAwal)}"></label>
+        ${b.nilaiStok ? `<small class="muted">Nilai stok produk saat ini (stok × HPP): ${rp(b.nilaiStok)} <button type="button" class="link" id="bkStockUse">Pakai nilai ini</button></small>` : ''}
+        <button class="btn full" id="bkStockSave">Simpan persediaan akhir</button></div>
       <div class="panel"><div class="panel-head"><h2>Peringatan otomatis</h2></div><div class="warn-list">${b.warn.map(w => `<div class="warn ${w.level}">${esc(w.text)}</div>`).join('')}</div>
-      <p class="muted small">Alur: penjualan → kas &amp; omzet naik; pembelian/gaji → biaya &amp; kas turun; hutang/piutang → kas berubah saat dibayar. Rincian kas ada di Laporan › Buku Kas.</p></div></div>`;
+      <p class="muted small">Alur: penjualan → kas &amp; omzet naik; pembelian/gaji → biaya &amp; kas turun; hutang/piutang → kas berubah saat dibayar. Rincian kas ada di tab Buku Kas.</p></div></div></div>`;
+    $('bkStockSave').onclick = () => saveStockEnd(ym);
+    if ($('bkStockUse')) $('bkStockUse').onclick = () => { $('bkStockEnd').value = Math.round(b.nilaiStok); };
   } else if (bkTab === 'labarugi') {
     const ms = BK.monthlyPnl(d, o.date ? BK.ymOf(o.date) : ym, 12), tot = k => ms.reduce((s, m) => s + m[k], 0);
     const line = (l, k, cls = '', f = rp) => `<tr class="${cls}"><td class="stick">${l}</td>${ms.map(m => `<td class="num">${f(m[k])}</td>`).join('')}<td class="num"><b>${f(tot(k))}</b></td></tr>`;
     $('bkBody').innerHTML = note + `<div class="panel"><div class="panel-head"><h2>Laba Rugi 12 bulan</h2><small>mulai ${label(o.date ? BK.ymOf(o.date) : ym)}</small></div><div class="table-wrap"><table class="bk-table"><thead><tr><th class="stick">Keterangan</th>${ms.map(m => `<th class="num">${label(m.ym)}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
-      ${line('Penjualan tunai', 'tunai')}${line('Penjualan non-tunai', 'nontunai')}${line('Penjualan tempo', 'tempo')}${line('Penjualan bruto', 'bruto', 'sub')}${line('(–) Diskon', 'diskon')}${line('Penjualan bersih', 'bersih', 'sub')}${line('HPP', 'hpp')}${line('Laba kotor', 'labaKotor', 'sub')}${line('Gaji', 'gaji')}${line('Sewa', 'sewa')}${line('Penyusutan', 'penyusutan')}${line('Total beban', 'beban', 'sub')}${line('Pajak', 'pajak')}${line('LABA BERSIH', 'labaBersih', 'tot')}</tbody></table></div></div>`;
+      ${line('Penjualan tunai', 'tunai')}${line('Penjualan non-tunai', 'nontunai')}${line('Penjualan tempo', 'tempo')}${line('Penjualan bruto', 'bruto', 'sub')}${line('(–) Diskon', 'diskon')}${line('Penjualan bersih', 'bersih', 'sub')}${line('Pembelian bahan + operasional', 'hppBeli')}${line('Perubahan persediaan', 'perubahanStok')}${line('HPP aktual', 'hpp', 'sub')}${line('Laba kotor', 'labaKotor', 'sub')}${line('Gaji', 'gaji')}${line('Utilitas, transport & beban lain', 'bebanLain')}${line('Sewa', 'sewa')}${line('Penyusutan', 'penyusutan')}${line('Total beban', 'beban', 'sub')}${line('Pajak', 'pajak')}${line('LABA BERSIH', 'labaBersih', 'tot')}</tbody></table></div></div>`;
   } else if (bkTab === 'bukukas') {
     const cb = BK.cashBook(d, BK.monthFrom(ym), BK.monthTo(ym));
     const rows = [`<tr class="sub"><td colspan="5">Saldo awal ${label(ym)}</td><td class="num">${rp(cb.open)}</td></tr>`, ...cb.rows.map(x => `<tr><td>${dmy(x.date)}</td><td>${esc(x.label)}</td><td>${esc(x.method || '')}</td><td class="num">${x.kind === 'in' ? rp(x.amount) : ''}</td><td class="num">${x.kind === 'out' ? rp(x.amount) : ''}</td><td class="num">${rp(x.saldo)}</td></tr>`), `<tr class="tot"><td colspan="3">Total / saldo akhir</td><td class="num">${rp(cb.in)}</td><td class="num">${rp(cb.out)}</td><td class="num">${rp(cb.close)}</td></tr>`];
@@ -98,12 +110,20 @@ async function renderPembukuan() {
   }
 }
 
+async function saveStockEnd(ym) {
+  const raw = $('bkStockEnd').value, old = (await all('openingBalance')).find(x => x.id === 'main') || { id: 'main' };
+  const map = { ...(old.stockEnd || {}) };
+  if (raw === '') delete map[ym]; else { const v = Number(raw); if (!(v >= 0)) return toast('Nilai persediaan tidak valid'); map[ym] = v; }
+  await put('openingBalance', { ...old, id: 'main', stockEnd: map });
+  toast('Persediaan akhir tersimpan'); await renderPembukuan();
+}
+
 // ---------- Evaluasi Usaha ----------
 const fmt = (v, f) => (f === 'rp' ? rp(v) : f === 'pct' ? pc(v) : num(v));
-const cls = s => (['Baik', 'Positif', 'Di atas titik impas', 'Bebas hutang', 'Tidak ada'].includes(s) ? 'good' : ['Perlu perhatian', 'Negatif', 'Di bawah titik impas', 'Ada hutang', 'Ada piutang'].includes(s) ? 'bad' : '');
+const cls = s => (['Baik', 'Wajar', 'Positif', 'Di atas titik impas', 'Bebas hutang', 'Tidak ada'].includes(s) ? 'good' : ['Perlu perhatian', 'Negatif', 'Di bawah titik impas', 'Ada hutang', 'Ada piutang'].includes(s) ? 'bad' : '');
 async function renderEvaluasi() {
   const ym = $('evMonth').value || thisYm(), ev = BK.evaluasi(await data(), ym);
-  const tgt = r => (r.target === null || r.target === undefined ? '—' : (r.key === 'food' || r.key === 'gaji' ? '≤ ' : r.key === 'mb' || r.key === 'bersih' ? '≥ ' : '') + fmt(r.target, r.fmt));
+  const tgt = r => (r.target === null || r.target === undefined ? '—' : (r.key === 'hppV' ? '± ' : r.key === 'food' || r.key === 'gaji' ? '≤ ' : r.key === 'mb' || r.key === 'bersih' ? '≥ ' : '') + fmt(r.target, r.fmt));
   const st = r => `<span class="status ${cls(r.status)}">${esc(r.status)}</span>`;
   const bad = ev.rows.filter(r => r.status === 'Perlu perhatian' || r.status === 'Di bawah titik impas' || r.status === 'Negatif');
   const sum = bad.length ? `<div class="warn warn">Perlu perhatian (${bad.length}): ${bad.map(r => esc(r.label)).join(', ')}.</div>` : '<div class="warn ok">Semua indikator utama dalam kondisi baik.</div>';

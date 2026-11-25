@@ -1,7 +1,7 @@
 // Uji kesetaraan dengan Pembukuan_DBL_revisi.xlsx (bulan Nov 2026) + uji alur kas/hutang/piutang.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import { pnl, neraca, pembukuan, evaluasi, cashBook, cashBalanceAt, monthlyCash, remainOf, debtStatus, rangeMonths, addMonthsDate, normOpening, findProductBySku, skuTaken, nextSku } from './pembukuan-logic.js';
+import { hppVariance, stockOpening, stockClose, defaultExpenseGroup, pnl, neraca, pembukuan, evaluasi, cashBook, cashBalanceAt, monthlyCash, remainOf, debtStatus, rangeMonths, addMonthsDate, normOpening, findProductBySku, skuTaken, nextSku } from './pembukuan-logic.js';
 
 const assets = JSON.parse(fs.readFileSync(new URL('./test-fixtures/pembukuan-assets.json', import.meta.url))).map((a, i) => ({ ...a, id: 'a' + i }));
 let ok = 0;
@@ -70,4 +70,25 @@ assert.equal(rangeMonths('2026-11-20', '2026-12-10').length, 2); assert.equal(ad
 assert.equal(normOpening({ cash: 5, bank: 7 }).kas, 12); ok++;
 const prods = [{ id: '1', sku: ' kb-01 ' }, { id: '2', sku: '' }];
 assert.equal(findProductBySku(prods, 'KB-01').id, '1'); assert.ok(skuTaken(prods, 'kb-01', '2') && !skuTaken(prods, 'kb-01', '1')); assert.equal(nextSku(prods), 'P003'); ok += 3;
+
+// --- Opsi 1: Utilitas & Transportasi di luar HPP; HPP aktual disesuaikan persediaan; selisih vs HPP standar (batas 10%)
+assert.equal(defaultExpenseGroup('Utilitas'), 'beban'); assert.equal(defaultExpenseGroup('Transportasi'), 'beban'); assert.equal(defaultExpenseGroup('Lainnya'), 'operasional'); ok += 3;
+const st = { ...base, opening: { ...base.opening, persediaan: 3000000, tHppVar: 0.10, stockEnd: { '2026-11': 2000000 } },
+  expenses: [...base.expenses, { id: 'u', date: '2026-11-13', type: 'Utilitas', name: 'Listrik', amount: 900000, payment: 'Tunai' }, { id: 't', date: '2026-11-14', type: 'Transportasi', name: 'Ojek', amount: 300000, payment: 'Tunai' }],
+  transactions: [{ ...tx(1, '2026-11-02', 'Tunai', 32950000), items: [{ price: 25000, qty: 1318, costPrice: 12000 }] }] };
+const ps = pnl(st, '2026-11-01', '2026-11-30');
+near('HPP pembelian (tanpa utilitas/transport)', ps.hppBeli, 2000000); near('beban lain', ps.bebanLain, 1200000);
+near('perubahan persediaan (3jt -> 2jt)', ps.perubahanStok, 1000000); near('HPP aktual', ps.hpp, 3000000);
+near('total beban incl. beban lain', ps.beban, 10820000 + 1200000 + 1166666.6667 + 332031.25);
+near('HPP standar', ps.hppStandar, 1318 * 12000); near('selisih HPP', ps.selisihHpp, 3000000 - 15816000);
+assert.equal(hppVariance(ps, 0.10).status, 'warn'); ok++;                       // aktual jauh di bawah standar -> peringatan
+// aktual 11% di atas standar -> peringatan; 8% -> wajar; HPP produk belum lengkap -> tidak dinilai
+const mk = (hpp, std, cov = 1) => ({ hppStandar: std, hpp, selisihPct: (hpp - std) / std, hppCoverage: cov });
+assert.equal(hppVariance(mk(1110, 1000)).status, 'warn'); assert.equal(hppVariance(mk(1080, 1000)).status, 'ok'); assert.equal(hppVariance(mk(1500, 1000, 0.5)).status, 'na'); assert.equal(hppVariance(mk(5, 0.0001)).status, 'warn'); ok += 4;
+assert.equal(hppVariance(mk(1100, 1000)).status, 'ok'); ok++; // tepat 10% masih wajar (peringatan bila LEBIH dari 10%)
+// persediaan dibawa ke bulan berikutnya bila belum diisi; bulan sebelum mulai tidak berubah
+const oo = normOpening(st.opening); near('awal Des = akhir Nov', stockOpening(oo, '2026-12'), 2000000); near('akhir Des (belum diisi) = awal', stockClose(oo, '2026-12'), 2000000); near('awal Nov = neraca', stockOpening(oo, '2026-11'), 3000000);
+near('Des tanpa perubahan stok', pnl(st, '2026-12-01', '2026-12-31').perubahanStok, 0);
+const pb2 = pembukuan(st, '2026-11', '2026-11-24'); assert.ok(pb2.warn.some(w => /HPP aktual/.test(w.text))); ok++;
+const ev2 = evaluasi(st, '2026-11', '2026-11-24'); assert.equal(ev2.rows.find(r => r.key === 'hppV').status, 'Perlu perhatian'); ok++;
 console.log(`✓ ${ok} pemeriksaan pembukuan lulus`);
