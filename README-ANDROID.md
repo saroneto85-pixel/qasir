@@ -56,3 +56,10 @@ Database SQLite berada di direktori privat aplikasi Android. Jangan menghapus da
 
 ## Versi 2.2.0
 Lihat `CHANGELOG-KASIR-2.2.0.md`. Jalankan `node test-pembukuan-logic.mjs` dan `node test-persediaan-logic.mjs` untuk uji rumus.
+
+## Versi 2.8.0 — Sinkronisasi antar perangkat (Wi-Fi toko)
+Lihat `CHANGELOG-KASIR-2.8.0.md` dan panduan pemakaian `PANDUAN-SINKRONISASI-LAN.md`.
+- Perangkat Utama: Room + server Ktor (Foreground Service) + NSD `_kasirdbl._tcp` port 8686.
+- Perangkat tambahan: menemukan Perangkat Utama otomatis lewat NSD, sinkron lewat Ktor Client; tetap bisa dipakai offline.
+- Build: workflow menyalin `android-native/src/main/java/id/kasmini/pos/` (termasuk subfolder `sync/`) lalu menjalankan `android-native/patch_lan_sync.py`. **minSdk menjadi 26 (Android 8.0).**
+- Uji: `sh android-native/test/run-tests.sh` dan `node test-sync-e2e.mjs` (butuh JDK dan Node ≥ 22).

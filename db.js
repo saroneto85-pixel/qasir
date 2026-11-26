@@ -9,6 +9,10 @@ let sqlite = null;
 let sqliteConnection = null;
 let idb = null;
 let initPromise = null;
+// Lapisan sinkronisasi LAN (sync.js). Bila terpasang, semua penulisan native lewat lapisan ini
+// agar tercatat di antrean kirim (outbox). Gerbang menahan penulisan sampai lapisan siap.
+let syncLayer = null;
+let syncGate = null;
 
 // Android/iOS selalu memakai SQLite lokal. Database ini berada di direktori privat
 // aplikasi pada penyimpanan internal perangkat (bukan server dan bukan browser storage).
@@ -66,6 +70,20 @@ async function initNativeDatabase() {
     );
   `);
   await sqlite.execute('CREATE INDEX IF NOT EXISTS idx_pos_records_store ON pos_records(store_name);');
+  // Tabel sinkronisasi antar perangkat (tidak dipakai pada mode Mandiri).
+  await sqlite.execute(`
+    CREATE TABLE IF NOT EXISTS sync_outbox (
+      store_name TEXT NOT NULL,
+      id TEXT NOT NULL,
+      op TEXT NOT NULL,
+      payload TEXT,
+      base_rev INTEGER,
+      base_payload TEXT,
+      seq INTEGER NOT NULL,
+      PRIMARY KEY (store_name, id)
+    );
+  `);
+  await sqlite.execute('CREATE TABLE IF NOT EXISTS sync_meta (k TEXT PRIMARY KEY, v TEXT);');
   // Migrasi idempoten: buat master kategori dari kategori teks produk lama.
   const legacy = await sqlite.query("SELECT payload FROM pos_records WHERE store_name = 'products'");
   for (const row of (legacy.values || [])) {
@@ -144,6 +162,8 @@ export async function put(name, obj) {
     throw new Error('Setiap data harus memiliki ID');
   }
   if (!isNative) return idbPut(name, obj);
+  if (syncGate) await syncGate;
+  if (syncLayer) return syncLayer.put(name, obj);
   await sqlite.run(
     'INSERT OR REPLACE INTO pos_records (store_name, id, payload) VALUES (?, ?, ?)',
     [name, String(obj.id), JSON.stringify(obj)]
@@ -155,10 +175,20 @@ export async function del(name, id) {
   assertStore(name);
   assertReady();
   if (!isNative) return idbDel(name, id);
+  if (syncGate) await syncGate;
+  if (syncLayer) return syncLayer.del(name, id);
   await sqlite.run(
     'DELETE FROM pos_records WHERE store_name = ? AND id = ?',
     [name, String(id)]
   );
+}
+
+// ---- Kait untuk sync.js (hanya Android) ----
+export const STORE_NAMES = Object.freeze([...STORES]);
+export function nativeConnection() { return sqlite; }
+export function installSyncLayer(layer) { syncLayer = layer; }
+export function setSyncGate(promise) {
+  syncGate = Promise.resolve(promise).catch(() => {}).finally(() => { syncGate = null; });
 }
 
 export async function databaseInfo() {
