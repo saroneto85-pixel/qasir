@@ -19,6 +19,16 @@ const normSku = v => String(v ?? '').trim().toUpperCase();
 // Dipakai untuk menambah stok produk saat 'Naik ke depan'. Penjualan memakai SEMUA produk yang terhubung.
 const prodFor = it => (!it ? null : products.find(p => normSku(p.sku) && normSku(p.sku) === normSku(it.sku)) || itemLinks(it, products).find(l => l.product)?.product || null);
 const linksOf = it => itemLinks(it, products);
+// Stok produk (Kelola Produk) bergerak SERENTAK dengan stok DEPAN item, memakai pengali (x) tiap produk:
+//   Naik ke depan (+), Stok awal depan (+), Rusak depan (-)  => stok produk berubah qty / pengali
+//   Penjualan kasir mengurangi stok tiap produk yang terjual (diatur di kasir). Hasilnya stok produk = sisa depan / pengali.
+function stockTargets(it, area, kind, qty) {
+  if (!it || !it.hasDepan) return [];
+  const sign = area === 'dapur' && kind === 'naik' ? 1 : area === 'depan' && kind === 'awal' ? 1 : area === 'depan' && kind === 'rusak' ? -1 : 0;
+  return sign ? linksOf(it).filter(l => l.product).map(l => ({ productId: l.product.id, name: l.product.name, delta: sign * qty / l.mult })) : [];
+}
+const appliedOf = x => (Array.isArray(x.stockApplied) ? x.stockApplied : x.stockApplied ? [{ productId: x.stockApplied.productId, delta: x.stockApplied.qty }] : []);
+async function revertApplied(x) { for (const a of appliedOf(x)) await adjustStock(a.productId, -a.delta); }
 const linkText = it => linksOf(it).map(l => `${l.product ? esc(l.product.name) : esc(l.sku)}${l.sku ? ` [${esc(l.sku)}]` : ''}${l.mult !== 1 ? ` ×${num(l.mult)}` : ''}`).join(', ');
 // Ubah stok produk (Kelola Produk). Stok yang belum dilacak dianggap 0 saat pertama kali terisi.
 async function adjustStock(productId, delta) {
@@ -236,7 +246,7 @@ function fillHint() {
   if (!it || !date) { $('ieHint').textContent = ''; return; }
   const b = balanceAt(it, entries.filter(e => e.id !== $('ieId').value), date), u = unitOf(it);
   const kind = $('ieKind').value;
-  $('ieHint').textContent = `Sisa per ${dmy(date)} — Dapur: ${num(b.dapur)}${it.hasDepan ? ` · Depan: ${num(b.depan)}` : ''} ${u}` + (kind === 'naik' ? ' · Jumlah ini otomatis menjadi stok awal depan dan menambah stok produk (via SKU).' : '');
+  $('ieHint').textContent = `Sisa per ${dmy(date)} — Dapur: ${num(b.dapur)}${it.hasDepan ? ` · Depan: ${num(b.depan)}` : ''} ${u}` + (kind === 'naik' ? ' · Jumlah ini otomatis menjadi stok depan dan menambah stok produk yang terhubung (qty ÷ pengali).' : '');
 }
 function openEntry(opts = {}) {
   if (!items.length) { toast('Tambahkan item persediaan dulu'); invManageItems(); return; }
@@ -266,12 +276,15 @@ async function saveEntry(e) {
   const next = entries.filter(x => x.id !== rec.id).concat(rec);
   if (!firstMinus(it, entries) && firstMinus(it, next) && !confirm(`Saldo ${it.name} akan menjadi MINUS pada ${dmy(firstMinus(it, next))}. Biasanya ini tanda catatan kurang atau salah input. Tetap simpan?`)) return;
   products = await all('products');
-  if (old?.stockApplied) await adjustStock(old.stockApplied.productId, -old.stockApplied.qty);
+  if (old) await revertApplied(old);
   let msg = 'Catatan persediaan disimpan';
-  if (area === 'dapur' && kind === 'naik') {
-    const prod = prodFor(it);
-    if (prod) { const r = await adjustStock(prod.id, qty); rec.stockApplied = { productId: prod.id, qty }; msg = `Naik ke depan dicatat. Stok ${prod.name} +${num(qty)} → ${num(r.next)}`; }
-    else msg = 'Dicatat, tetapi SKU item belum cocok dengan produk — stok produk tidak berubah';
+  const targets = stockTargets(it, area, kind, qty);
+  if (targets.length) {
+    rec.stockApplied = [];
+    for (const t of targets) { const r = await adjustStock(t.productId, t.delta); if (r) rec.stockApplied.push({ productId: t.productId, delta: t.delta }); }
+    msg = `Dicatat. Stok produk ${targets.map(t => `${t.name} ${t.delta >= 0 ? '+' : ''}${num(t.delta)}`).join(', ')}`;
+  } else if ((area === 'dapur' && kind === 'naik') || (area === 'depan' && (kind === 'awal' || kind === 'rusak'))) {
+    msg = 'Dicatat, tetapi item belum terhubung ke produk (SKU) — stok produk tidak berubah';
   }
   await put('invEntries', rec);
   $('invEntryDialog').close();
@@ -337,7 +350,7 @@ async function deleteEntry(id) {
   if (!e) return;
   const group = e.refId ? entries.filter(x => x.refId === e.refId) : [e];
   if (!confirm(e.refId ? 'Catatan ini bagian dari olahan (bahan dipakai + menu hasil). Hapus keduanya?' : 'Hapus catatan ini?')) return;
-  for (const x of group) { if (x.stockApplied) await adjustStock(x.stockApplied.productId, -x.stockApplied.qty); await del('invEntries', x.id); }
+  for (const x of group) { await revertApplied(x); await del('invEntries', x.id); }
   await renderInventory();
   window.renderProducts?.();
   toast('Catatan dihapus');
@@ -405,7 +418,7 @@ async function deleteItem(id) {
   if (!i) return;
   const mine = entries.filter(x => x.itemId === id);
   if (!confirm(mine.length ? `Hapus “${i.name}” beserta ${mine.length} catatannya? Tindakan ini tidak bisa dibatalkan.` : `Hapus item “${i.name}”?`)) return;
-  for (const x of mine) { if (x.stockApplied) await adjustStock(x.stockApplied.productId, -x.stockApplied.qty); await del('invEntries', x.id); }
+  for (const x of mine) { await revertApplied(x); await del('invEntries', x.id); }
   await del('invItems', id);
   await openItems();
   await renderInventory();

@@ -327,3 +327,7 @@ main{max-width:860px;margin-left:auto;margin-right:auto}
 .exp-actions>*:last-child:nth-child(odd){grid-column:1/-1}
 .exp-actions .btn,.exp-actions .outline{width:100%;white-space:nowrap}
 #expenses .page-head{flex-direction:column;align-items:stretch;gap:12px}
+/* ===== KASIR 2.7.0: pemeriksaan data ===== */
+.audit-item{border:1px solid var(--line);border-left:4px solid #bbb;border-radius:12px;padding:10px 12px;margin:8px 0;background:#fff}.audit-item.bad{border-left-color:#c0392b}.audit-item.mid{border-left-color:#e0a100}
+.audit-item .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.audit-item small{display:block;color:var(--muted);margin-top:4px}
+.audit-fixes{display:grid;gap:8px;margin:12px 0}

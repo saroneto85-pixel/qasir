@@ -91,4 +91,13 @@ const oo = normOpening(st.opening); near('awal Des = akhir Nov', stockOpening(oo
 near('Des tanpa perubahan stok', pnl(st, '2026-12-01', '2026-12-31').perubahanStok, 0);
 const pb2 = pembukuan(st, '2026-11', '2026-11-24'); assert.ok(pb2.warn.some(w => /HPP aktual/.test(w.text))); ok++;
 const ev2 = evaluasi(st, '2026-11', '2026-11-24'); assert.equal(ev2.rows.find(r => r.key === 'hppV').status, 'Perlu perhatian'); ok++;
+// --- audit: sewa sebelum mulai sewa, aset dibayar kas, kasbon/pinjaman bercatat kas
+{
+  const o = { date: '2026-11-01', kas: 1000000, rentYear: 12000000, rentStart: '2026-12-01', life: 8 };
+  near('sewa belum berjalan sebelum mulai sewa', pnl({ opening: o }, '2026-11-01', '2026-11-30').sewa, 0); near('sewa berjalan setelah mulai', pnl({ opening: o }, '2026-12-01', '2026-12-31').sewa, 1000000);
+  near('sewa dimuka tidak melebihi setahun', neraca({ opening: o }).sewaDimuka, 12000000);
+  const dd = { opening: o, assets: [{ name: 'Blender', date: '2026-11-10', value: 400000, life: 4, residual: 0, cashPaid: true }, { name: 'Lama', date: '2026-10-10', value: 900000, life: 4, residual: 0 }],
+    liabilities: [{ name: 'Pinjam Bank', kind: 'Hutang Supplier', amount: 2000000, date: '2026-11-12', cashAtCreate: true, payments: [] }], receivables: [{ name: 'Rahmat', kind: 'Kasbon Karyawan', amount: 300000, date: '2026-11-15', cashAtCreate: true, payments: [{ date: '2026-11-20', amount: 100000 }] }], transactions: [], expenses: [] };
+  near('kas = awal -aset -kasbon +pinjaman +cicilan kasbon', cashBalanceAt(dd, '2026-11-30'), 1000000 - 400000 + 2000000 - 300000 + 100000);
+}
 console.log(`✓ ${ok} pemeriksaan pembukuan lulus`);

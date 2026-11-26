@@ -148,7 +148,9 @@ export function pnl(d, from, to) {
   r.hpp = r.hppBeli + r.perubahanStok;
   r.labaKotor = r.bersih - r.hpp;
   r.marginKotor = r.bersih ? r.labaKotor / r.bersih : 0;
-  r.sewa = o.rentYear ? sum(months, m => (o.rentYear / 12) * m.frac) : 0;
+  // sewa berjalan sejak bulan mulai sewa (bulan sebelumnya belum ada beban sewa)
+  const rentFrom = o.rentStart ? ymIdx(ymOf(o.rentStart)) : -Infinity;
+  r.sewa = o.rentYear ? sum(months, m => (ymIdx(m.ym) >= rentFrom ? (o.rentYear / 12) * m.frac : 0)) : 0;
   r.penyusutan = sum(months, m => sum(d.assets || [], a => assetDepInMonth(a, m.ym) * m.frac));
   r.beban = r.gaji + r.bebanLain + r.sewa + r.penyusutan;
   r.labaSebelumPajak = r.labaKotor - r.beban;
@@ -185,6 +187,9 @@ export function cashEvents(d, from = '', to = '9999-12-31') {
   }
   for (const x of d.receivables || []) for (const p of x.payments || []) ev.push({ date: p.date, kind: 'in', amount: n(p.amount), label: `Piutang: ${x.name}`, method: p.method || 'Tunai', src: 'piutang' });
   for (const x of d.liabilities || []) for (const p of x.payments || []) ev.push({ date: p.date, kind: 'out', amount: n(p.amount), label: `Hutang: ${x.name}`, method: p.method || 'Tunai', src: 'hutang' });
+  for (const a of d.assets || []) if (a.cashPaid && a.date && n(a.value)) ev.push({ date: a.date, kind: 'out', amount: n(a.value), label: `Pembelian aset: ${a.name || ''}`.trim(), method: 'Tunai', src: 'aset' });
+  for (const x of d.liabilities || []) if (x.cashAtCreate && x.date) ev.push({ date: x.date, kind: 'in', amount: n(x.amount), label: `Pinjaman diterima: ${x.name}`, method: 'Tunai', src: 'hutang' });
+  for (const x of d.receivables || []) if (x.cashAtCreate && x.date) ev.push({ date: x.date, kind: 'out', amount: n(x.amount), label: `${x.kind || 'Piutang'} diberikan: ${x.name}`, method: 'Tunai', src: 'piutang' });
   const start = (d.opening && normOpening(d.opening).date) || '';
   return ev.filter(e => e.amount && e.date && e.date >= from && e.date <= to && (!start || e.date >= start)).sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -225,7 +230,7 @@ export function neraca(d, today = localToday()) {
   let sewaDimuka = 0, jatuhTempo = '', sisaHari = null;
   if (o.rentYear && o.rentStart && startYm) {
     const used = ymIdx(startYm) - ymIdx(ymOf(o.rentStart));
-    sewaDimuka = (o.rentYear * Math.max(0, 12 - used)) / 12;
+    sewaDimuka = (o.rentYear * Math.min(12, Math.max(0, 12 - used))) / 12; // dibatasi 0..12 bulan
   }
   if (o.rentStart) { jatuhTempo = addMonthsDate(o.rentStart, 12); sisaHari = daysBetween(today, jatuhTempo); }
   const totalAset = o.kas + o.persediaan + peralatan - akum + sewaDimuka;

@@ -49,6 +49,9 @@ async function saveNeraca() {
   const form = readForm();
   if (!form.date) return toast('Isi tanggal mulai pembukuan');
   if (form.life <= 0) return toast('Umur ekonomis harus lebih dari 0');
+  if (['kas', 'persediaan', 'peralatan', 'akum', 'hutang', 'rentYear', 'tSales'].some(k => form[k] < 0)) return toast('Nilai tidak boleh negatif');
+  if (form.residualPct < 0 || form.residualPct > 100 || form.taxPct < 0 || form.taxPct > 100) return toast('Persentase harus 0–100');
+  if (['tFood', 'tSalary', 'tMargin', 'tHppVar'].some(k => form[k] < 0 || form[k] > 1)) return toast('Target persen harus 0–100');
   const old = (await all('openingBalance')).find(x => x.id === 'main') || {};
   const nr = BK.neraca({ ...(await data()), opening: { ...old, ...form } });
   const rec = { ...old, ...form, id: 'main' };
