@@ -27,7 +27,7 @@ function readForm() {
 }
 async function fillForm() {
   const d = await data(), o = BK.normOpening(d.opening), nr = BK.neraca(d);
-  const x = { ...o, peralatan: nr.peralatan, akum: nr.akum };
+  const x = { ...o, peralatan: Math.round(nr.peralatan), akum: Math.round(nr.akum) };
   if (!x.date) x.date = BK.localToday().slice(0, 8) + '01';
   for (const [id, k] of Object.entries(F)) $(id).value = x[k] ?? '';
   for (const [id, k] of Object.entries(PCT)) $(id).value = FRAC.has(k) ? Math.round(o[k] * 10000) / 100 : o[k];

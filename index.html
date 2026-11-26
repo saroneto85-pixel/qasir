@@ -50,7 +50,7 @@
 </div></section>
 <div class="stats"><article><small>Penjualan hari ini</small><strong id="todaySales">Rp0</strong><span id="todayCount">0 transaksi</span></article><article><small>Transaksi hari ini</small><strong id="todayTx">0</strong><span>Semua tipe transaksi</span></article><article><small>Pengeluaran hari ini</small><strong id="todayExpense">Rp0</strong><span>Biaya tercatat</span></article><article><small>Laba kotor estimasi hari ini</small><strong id="todayProfit" data-hidden="true">••••••</strong><button type="button" class="link" id="profitReveal">Tampilkan (PIN)</button><span>Penjualan − HPP produk</span></article></div>
 <div id="invDashPanel"></div>
-<p class="muted small app-ver" id="appVersion">KASIR v2.6.1</p>
+<p class="muted small app-ver" id="appVersion">KASIR v2.6.2</p>
 <div class="panel"><div class="panel-head"><h2>Transaksi terbaru</h2><button class="link" onclick="showPage('history')">Lihat semua →</button></div><div id="recentTable"></div></div>
 </section>
 <section id="products" class="page">
@@ -121,7 +121,7 @@
 <div id="evBody"></div>
 </section>
 <section id="expenses" class="page">
-<div class="page-head"><div><h1>Pengeluaran</h1><p>Catat belanja, kelola jenis &amp; item, karyawan, dan laporan.</p></div><div class="toolbar-actions exp-actions"><button class="outline" id="manageExpenseTypes">Jenis &amp; item</button><div class="toolbar-actions"><button class="outline" id="exportExpenses">⇩ Unduh Excel</button><button class="btn" onclick="openExpense()">＋ Tambah pengeluaran</button></div></div></div>
+<div class="page-head"><div><h1>Pengeluaran</h1><p>Catat belanja, kelola jenis &amp; item, karyawan, dan laporan.</p></div><div class="toolbar-actions exp-actions"><button class="outline" id="manageExpenseTypes">Jenis &amp; item</button><button class="outline" id="exportExpenses">⇩ Unduh Excel</button><button class="btn" onclick="openExpense()">＋ Tambah pengeluaran</button></div></div>
 <div class="exp-tabs" role="tablist"><button class="tab active" data-exp-tab="list">Daftar pengeluaran</button><button class="tab" data-exp-tab="staff">Karyawan</button><button class="tab" data-exp-tab="report">Laporan</button></div>
 <div class="exp-filters" id="expFilters"><label>Dari<input type="date" id="expFrom"></label><label>Sampai<input type="date" id="expTo"></label><button class="outline" id="expThisMonth" type="button">Bulan ini</button></div>
 <div id="expPane-list" class="panel exp-panel"><div id="expenseTable"></div></div>
@@ -145,7 +145,7 @@
 <div><h2>Data & perangkat</h2><p class="muted">Data transaksi dan produk disimpan secara lokal di perangkat ini. Backup JSON dapat dipakai untuk memindahkan seluruh data.</p><button class="outline full" id="backupData">Cadangkan data (JSON)</button><label class="file-label">Pulihkan cadangan JSON<input type="file" id="restoreFile" accept=".json,application/json"></label><button class="outline full danger" id="clearData">Hapus seluruh data aplikasi</button><p class="muted small">Backup secara berkala. Menghapus data browser atau mengganti perangkat dapat menghilangkan data jika belum dicadangkan.</p></div>
 <div><h2>Printer Bluetooth RPP02N</h2><p class="muted small">Pasangkan RPP02N terlebih dahulu melalui pengaturan Bluetooth Android.</p><button class="outline full" id="refreshPrinters">Cari printer yang sudah dipasangkan</button><label>Printer default<select id="printerSelect"><option value="">Pilih printer</option></select></label><button class="btn full" id="connectPrinter">Hubungkan printer</button><p id="printerStatus" class="muted small">Belum terhubung</p><button class="outline full" id="printLast">Cetak struk terakhir</button><p class="muted small">Pencetakan menggunakan Bluetooth Classic SPP dan ESC/POS.</p></div>
 <div><h2>Kasir</h2><p class="muted small">Daftar kasir dipakai pada menu Transaksi dan laporan Per Kasir.</p><button class="btn full" id="addCashier">＋ Tambah kasir</button><div id="cashierList"></div></div>
-<div><h2>Aplikasi</h2><p>KASIR v2.6.1 · Android offline</p><button class="outline full" id="changePin">Ganti PIN keamanan</button><button class="outline full" id="lockNow">Kunci sekarang</button><p class="muted small">PIN cukup dimasukkan satu kali; menu terproteksi tetap terbuka sampai aplikasi ditutup atau dikunci.</p><p class="muted small">Penyimpanan SQLite pada Android · IndexedDB pada browser</p><button class="outline full" id="reloadApp">Muat ulang aplikasi</button></div></div>
+<div><h2>Aplikasi</h2><p>KASIR v2.6.2 · Android offline</p><button class="outline full" id="changePin">Ganti PIN keamanan</button><button class="outline full" id="lockNow">Kunci sekarang</button><p class="muted small">PIN cukup dimasukkan satu kali; menu terproteksi tetap terbuka sampai aplikasi ditutup atau dikunci.</p><p class="muted small">Penyimpanan SQLite pada Android · IndexedDB pada browser</p><button class="outline full" id="reloadApp">Muat ulang aplikasi</button></div></div>
 <div class="panel rc-panel" id="receiptSettings"><div class="panel-head"><h2>Pengaturan struk</h2><div class="rc-head-btns"><button class="outline" id="rcReset" type="button">Bawaan</button><button class="btn" id="rcSave" type="button">Simpan pengaturan struk</button></div></div>
 <div class="rc-grid"><div class="rc-form">
 <fieldset><legend>Kertas &amp; logo</legend>

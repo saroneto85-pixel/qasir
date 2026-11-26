@@ -319,3 +319,11 @@ dialog.tx-edit{max-height:94vh;overflow-y:auto}
    Pada layar lebar isi dibatasi agar tetap proporsional dan terpusat. */
 main{max-width:860px;margin-left:auto;margin-right:auto}
 .shell{display:block}
+
+/* ===== KASIR 2.6.2: perbaikan tombol terpotong ===== */
+#detailDialog menu{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#detailDialog menu button{width:100%;min-height:44px;white-space:normal;line-height:1.2}
+.exp-actions{display:grid!important;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.exp-actions>*:last-child:nth-child(odd){grid-column:1/-1}
+.exp-actions .btn,.exp-actions .outline{width:100%;white-space:nowrap}
+#expenses .page-head{flex-direction:column;align-items:stretch;gap:12px}
