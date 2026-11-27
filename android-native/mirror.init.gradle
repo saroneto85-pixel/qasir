@@ -1,0 +1,16 @@
+// Init script Gradle: alihkan Maven Central ke mirror resmi Google agar build tidak gagal oleh
+// "429 Too Many Requests" dari repo.maven.apache.org (pembatasan untuk IP server GitHub Actions).
+def MIRROR = 'https://maven-central.storage-download.googleapis.com/maven2/'
+def reroute = { repo ->
+    if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith('https://repo.maven.apache.org/maven2')) {
+        repo.url = MIRROR
+    }
+}
+beforeSettings { settings ->
+    settings.pluginManagement.repositories.all(reroute)
+    settings.dependencyResolutionManagement.repositories.all(reroute)
+}
+allprojects {
+    buildscript.repositories.all(reroute)
+    repositories.all(reroute)
+}
