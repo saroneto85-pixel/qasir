@@ -5,7 +5,7 @@ import { buildXlsx } from './xlsx.js';
 import { readXlsx } from './xlsx-read.js';
 import { defaultExpenseGroup } from './pembukuan-logic.js';
 import {
-  n, normCode, unitCost, indexByCode, menuCost, menuStatus, productForMenu, productionMenus, invItemForMaterial,
+  n, normCode, unitCost, indexByCode, menuCost, menuStatus, productForMenu, invItemForMaterial, AUTO_INV_SOURCES,
   stockSummary, movements, runBalance, invEntriesFromExpenses, ENTRY_KINDS, RECIPE_GROUPS, STATUS_LABEL, parseHppWorkbook, mergeImport
 } from './bahan-logic.js';
 
@@ -87,11 +87,10 @@ export async function renderBahan() {
 function openEntry(code) {
   if (!D.materials.length) return toast('Tambahkan bahan dulu');
   $('meForm').reset();
-  $('meMaterial').innerHTML = D.materials.filter(m => m.tracked !== false && !invItemForMaterial(m, D.invItems)).map(m => `<option value="${esc(m.code)}">${esc(m.code)} · ${esc(m.name)} (${esc(m.stockUnit || '')})</option>`).join('');
+  $('meMaterial').innerHTML = D.materials.filter(m => m.tracked !== false).map(m => `<option value="${esc(m.code)}">${esc(m.code)} · ${esc(m.name)} (${esc(m.stockUnit || '')})</option>`).join('');
   if (code) $('meMaterial').value = normCode(code);
   if (!$('meMaterial').value) {
     const m = matByCode(code);
-    if (m && invItemForMaterial(m, D.invItems)) return toast(`${m.name} dipantau di Kontrol Persediaan; catat di sana`);
     if (m && m.tracked === false) return toast(`${m.name} tidak dilacak stoknya (lihat Edit bahan)`);
   }
   $('meDate').value = localToday();
@@ -105,8 +104,10 @@ function entryHint() {
   $('meUnit').textContent = u ? `dalam ${u}` : '';
   const s = m ? stockSummary(D, '0000-01-01', $('meDate').value || localToday()).find(x => x.code === normCode(m.code)) : null;
   const k = $('meKind').value;
+  const inv = m && invItemForMaterial(m, D.invItems);
   $('meHint').textContent = (k === 'opname' ? 'Isi jumlah HASIL HITUNG FISIK di akhir hari; selisihnya dicatat otomatis. ' : k === 'awal' ? 'Stok saat mulai memakai menu ini. ' : '')
-    + (s ? `Sisa menurut catatan pada tanggal itu: ${num(s.close)} ${u}.` : '');
+    + (s ? `Sisa menurut catatan pada tanggal itu: ${num(s.close)} ${u}.` : '')
+    + (inv && k === 'masuk' ? ` Otomatis juga tercatat sebagai Bahan masuk di Persediaan (“${inv.name}”).` : '');
 }
 async function saveEntry(e) {
   e.preventDefault();
@@ -116,6 +117,8 @@ async function saveEntry(e) {
   await put('materialEntries', { id: uid(), code, date, kind, qty, note: $('meNote').value.trim(), createdAt: Date.now() });
   $('materialEntryDialog').close();
   toast('Tersimpan');
+  await load();
+  await syncInvFromExpenses();
   await renderBahan();
 }
 
@@ -135,10 +138,10 @@ function renderCard() {
   const all = runBalance(movements(D).get(normCode(m.code)) || []);
   const before = all.filter(r => r.date < from), rows = all.filter(r => r.date >= from && r.date <= to);
   const open = before.length ? before[before.length - 1].balance : 0;
-  const label = { awal: 'Stok awal', beli: 'Belanja', masuk: 'Masuk lain', jual: 'Penjualan', produksi: 'Masakan (Persediaan)', pakai: 'Pemakaian lain', rusak: 'Rusak', opname: 'Opname' };
-  const head = inv ? `<p class="bahan-note">Bahan ini dipantau di <b>Kontrol Persediaan</b> (item “${esc(inv.name)}”). Belanja dengan kode ${esc(m.code)} otomatis tercatat di sana sebagai “Bahan masuk”. Di bawah hanya riwayat belanjanya.</p>`
-    : m.tracked === false ? '<p class="bahan-note">Bahan ini tidak dilacak stoknya (biaya overhead). Di bawah riwayat belanjanya.</p>' : '';
-  const noBal = inv || m.tracked === false;
+  const label = { awal: 'Stok awal', beli: 'Belanja', masuk: 'Masuk lain', jual: 'Penjualan', pakai: 'Pemakaian lain', rusak: 'Rusak', opname: 'Opname' };
+  const head = (inv ? `<p class="bahan-note">Terhubung ke <b>Kontrol Persediaan</b> (item “${esc(inv.name)}”): setiap belanja dan “Masuk lain” bahan ini otomatis tercatat di sana sebagai Bahan masuk dapur. Stok &amp; nilai bahan tetap dihitung di sini.</p>` : '')
+    + (m.tracked === false ? '<p class="bahan-note">Bahan ini tidak dilacak stoknya (biaya overhead). Di bawah riwayat belanjanya.</p>' : '');
+  const noBal = m.tracked === false;
   $('mcBody').innerHTML = head + `<div class="table-wrap"><table class="mc-table"><thead><tr><th>Tanggal</th><th>Keterangan</th><th class="num">Masuk / keluar</th>${noBal ? '' : `<th class="num">Saldo (${u})</th>`}</tr></thead><tbody>
     ${noBal ? '' : `<tr class="muted"><td>${dmy(from)}</td><td>Saldo awal bulan</td><td></td><td class="num"><b>${num(open)}</b></td></tr>`}
     ${rows.map(r => `<tr><td>${dmy(r.date)}</td><td><b>${label[r.kind] || r.kind}</b><small>${esc(r.label)}${r.value ? ' · ' + rp(r.value) : ''}</small>${D.entries.some(x => x.id === r.ref) ? `<button class="link danger-link mc-del" type="button" onclick="bahanUi.deleteEntry('${esc(r.ref)}')">Hapus catatan</button>` : ''}</td><td class="num ${r.delta < 0 ? 'mc-out' : 'mc-in'}">${r.kind === 'opname' ? '= ' + num(r.balance) : r.delta > 0 ? '+' + num(r.delta) : r.delta < 0 ? '−' + num(-r.delta) : ''}</td>${noBal ? '' : `<td class="num">${num(r.balance)}</td>`}</tr>`).join('') || `<tr><td colspan="${noBal ? 3 : 4}" class="muted">Belum ada pergerakan di bulan ini.</td></tr>`}
@@ -149,6 +152,7 @@ async function deleteEntry(id) {
   if (!confirm('Hapus catatan ini?')) return;
   await del('materialEntries', id);
   await load();
+  await syncInvFromExpenses();
   renderCard();
   renderBahan();
 }
@@ -180,7 +184,7 @@ function materialHint() {
   const inv = invItemForMaterial({ code: $('mmCode').value }, D.invItems);
   $('mmHint').innerHTML = `Harga per ${esc($('mmStockUnit').value || 'satuan stok')}: <b>${uc ? 'Rp' + num(uc, uc < 10 ? 4 : 2) : '— (harga belum diisi)'}</b>`
     + (used.length ? `<br>Dipakai di ${used.length} menu: ${used.slice(0, 5).map(x => esc(x.code)).join(', ')}${used.length > 5 ? '…' : ''}` : '')
-    + (inv ? `<br>Dipantau di Kontrol Persediaan (item “${esc(inv.name)}”, SKU sama dengan kode).` : '');
+    + (inv ? `<br>Terhubung ke item Persediaan “${esc(inv.name)}” (bahan masuk otomatis).` : '');
 }
 export function nextCode(list, prefix, width) {
   let max = 0;
@@ -212,6 +216,7 @@ async function renameMaterialCode(from, to) {
   for (const m of D.menus) if ((m.items || []).some(i => normCode(i.code) === f)) await put('hppMenus', { ...m, items: m.items.map(i => normCode(i.code) === f ? { ...i, code: to } : i) });
   for (const x of D.expenses) if (normCode(x.materialCode) === f) await put('expenses', { ...x, materialCode: to });
   for (const x of D.entries) if (normCode(x.code) === f) await put('materialEntries', { ...x, code: to });
+  for (const x of D.invItems) if (normCode(x.materialCode) === f) await put('invItems', { ...x, materialCode: to });
 }
 async function deleteMaterial() {
   const id = $('mmId').value, m = D.materials.find(x => x.id === id);
@@ -220,6 +225,8 @@ async function deleteMaterial() {
   if (!confirm(`Hapus bahan ${m.code} ${m.name}?` + (used.length ? `\n\nMasih dipakai di ${used.length} resep menu; baris resep itu akan ditandai "bahan tidak dikenal".` : '') + (bought ? `\n${bought} catatan belanja tetap ada di Pengeluaran.` : ''))) return;
   await del('materials', id);
   for (const x of D.entries.filter(x => normCode(x.code) === normCode(m.code))) await del('materialEntries', x.id);
+  for (const x of D.invItems.filter(x => normCode(x.materialCode) === normCode(m.code))) await put('invItems', { ...x, materialCode: '' });
+  await load(); await syncInvFromExpenses();
   $('materialDialog').close();
   await refreshBoth();
 }
@@ -230,8 +237,7 @@ async function deleteMaterial() {
 export async function renderHpp() {
   if (!$('hpp')) return;
   await load();
-  const prodSet = productionMenus(D.menus, D.products, D.invItems);
-  const list = D.menus.map(m => ({ m, c: costOf(m), p: productForMenu(m, D.products), prod: prodSet.get(m.id) }));
+  const list = D.menus.map(m => ({ m, c: costOf(m), p: productForMenu(m, D.products) }));
   const priced = list.filter(x => x.c.pct !== null);
   const avg = priced.length ? priced.reduce((a, x) => a + x.c.pct, 0) / priced.length : null;
   const high = list.filter(x => x.c.pct !== null && x.c.pct > 0.7).length, unlinked = list.filter(x => !x.p).length;
@@ -248,7 +254,7 @@ export async function renderHpp() {
     return;
   }
   const st = x => { const s = menuStatus(x.c); return s ? `<span class="st-badge ${s.startsWith('Food') ? 'bad' : 'warn'}">${esc(s)}</span>` : '<span class="st-badge ok">OK</span>'; };
-  const link = x => x.p ? `${esc(x.p.name)}<small>SKU ${esc(x.p.sku || '—')}${x.prod ? ' · bahan dipotong saat masak (Persediaan)' : ' · bahan dipotong per penjualan'}</small>` : '<span class="st-badge warn">Belum terhubung</span>';
+  const link = x => x.p ? `${esc(x.p.name)}<small>SKU ${esc(x.p.sku || '—')} · bahan dipotong per penjualan</small>` : '<span class="st-badge warn">Belum terhubung</span>';
   const costWarn = x => x.p && Math.round(n(x.p.costPrice)) !== Math.round(x.c.perPortion) ? `<small class="warn-text">modal produk ${rp(x.p.costPrice)}</small>` : '';
   const tbl = `<div class="table-wrap"><table><thead><tr><th>Kode</th><th>Menu</th><th>Produk kasir</th><th class="num">Harga jual</th><th class="num">HPP / porsi</th><th class="num">Laba</th><th class="num">Food cost</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(x => `<tr>
     <td><b>${esc(x.m.code)}</b></td><td><b>${esc(x.m.name)}</b><small>${esc(x.m.category || '')} · ${num(x.m.batch, 2)} porsi/batch · ${(x.m.items || []).length} bahan</small></td><td>${link(x)}</td>
@@ -505,7 +511,7 @@ function materialInfo() {
   const s = stockSummary(D, '0000-01-01', localToday()).find(x => x.code === code);
   const inv = invItemForMaterial(m, D.invItems);
   $('eMaterialInfo').innerHTML = `${esc(m.name)} · 1 ${esc(m.buyUnit || 'satuan')} = ${num(m.perBuy)} ${esc(m.stockUnit || '')}` +
-    (inv ? ` · masuk ke Kontrol Persediaan (“${esc(inv.name)}”)` : m.tracked === false ? ' · tidak dilacak stoknya' : ` · stok sekarang ${num(s?.close)} ${esc(m.stockUnit || '')}`);
+    (m.tracked === false ? ' · tidak dilacak stoknya' : ` · stok sekarang ${num(s?.close)} ${esc(m.stockUnit || '')}`) + (inv ? ` · juga masuk ke Persediaan (“${esc(inv.name)}”)` : '');
 }
 let lastPicked = '';
 function onMaterialPicked() {
@@ -554,19 +560,30 @@ async function afterExpenseDeleted() { await load(); await syncInvFromExpenses()
  * Belanja bahan yang dipantau di Kontrol Persediaan -> catatan "Bahan masuk" (id 'exp-<idPengeluaran>').
  * Idempoten: membuat yang kurang, membetulkan yang berubah, menghapus yang pengeluarannya sudah tidak ada.
  */
-async function syncInvFromExpenses() {
-  const want = invEntriesFromExpenses(D.expenses, D.materials, D.invItems);
+async function syncInvFromExpenses({ quiet = false } = {}) {
+  // Butuh data lengkap: perangkat tanpa akses bahan/pengeluaran tidak boleh menghapus catatan otomatis.
+  const P = window.kasirPerms?.perms?.();
+  if (P && !['materials', 'expenses', 'materialEntries', 'invItems', 'invEntries'].every(st => P.canRead(st))) return false;
+  const want = invEntriesFromExpenses(D.expenses, D.materials, D.invItems, D.entries);
   let changed = false;
-  for (const e of D.invEntries.filter(e => e.source === 'pengeluaran')) {
+  for (const e of D.invEntries.filter(e => AUTO_INV_SOURCES.has(e.source))) {
     if (!want.has(e.id)) { await del('invEntries', e.id); changed = true; }
   }
   for (const [id, w] of want) {
     const cur = D.invEntries.find(e => e.id === id);
-    if (cur && cur.itemId === w.itemId && n(cur.qty) === w.qty && cur.date === w.date && cur.kind === 'masuk' && cur.area === 'dapur') continue;
+    if (cur && cur.itemId === w.itemId && n(cur.qty) === w.qty && cur.date === w.date && cur.kind === 'masuk' && cur.area === 'dapur' && cur.note === w.note && cur.source === w.source) continue;
     await put('invEntries', { ...(cur || {}), ...w, createdAt: cur?.createdAt || Date.now() });
     changed = true;
   }
-  if (changed) { D.invEntries = await all('invEntries'); window.renderInventory?.(); }
+  if (changed) { D.invEntries = await all('invEntries'); if (!quiet) window.renderInventory?.(); }
+  return changed;
+}
+let syncing = null;
+/** Dipanggil Kontrol Persediaan sebelum menampilkan data (satu proses dalam satu waktu). */
+async function syncInvNow(opts) {
+  if (syncing) return syncing;
+  syncing = (async () => { try { await load(); return await syncInvFromExpenses(opts); } catch (e) { console.warn('Sinkron bahan masuk gagal', e); return false; } finally { syncing = null; } })();
+  return syncing;
 }
 
 // =====================================================================
@@ -615,6 +632,7 @@ function bind() {
 window.bahanUi = { openEntry, openCard, deleteEntry, editMaterial, editMenu, openImport };
 window.bahanExpense = { fill: fillExpenseForm, collect: collectExpenseMaterial, afterSave: afterExpenseSaved, afterDelete: afterExpenseDeleted };
 window.renderBahan = renderBahan;
+window.bahanSyncInv = syncInvNow;
 window.renderHpp = renderHpp;
 window.bahanRefresh = refreshBoth;
 bind();

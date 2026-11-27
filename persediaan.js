@@ -3,6 +3,7 @@
 // Depan: kiriman dari dapur (= stok awal depan) → penjualan → sisa.
 // Memakai database, PIN, dan toast dari app.js (lewat window), seperti modul resto.
 import { all, put, del } from './db.js';
+import { materialForItem, AUTO_INV_SOURCES } from './bahan-logic.js';
 import { AREA, KIND_LABEL, kindsFor, summarizeAll, summarize, dailyCard, itemLinks, posSalesForItem, firstMinus, balanceAt, monthRange, localToday, SEED_ITEMS } from './persediaan-logic.js';
 
 const $ = id => document.getElementById(id);
@@ -40,10 +41,13 @@ async function adjustStock(productId, delta) {
   return { p, next };
 }
 
-let tab = 'dash', items = [], entries = [], products = [], low = 2, month = localToday().slice(0, 7), cardItem = '', loaded = false, unmatchedSold = [], lastSync = '';
+let tab = 'dash', items = [], entries = [], products = [], materials = [], low = 2, month = localToday().slice(0, 7), cardItem = '', loaded = false, unmatchedSold = [], lastSync = '';
 
 // ---------- data ----------
 async function load() {
+  await window.bahanSyncInv?.({ quiet: true }); // bahan masuk otomatis dari Stok Bahan Baku (item terhubung kode bahan)
+  const P = window.kasirPerms?.perms?.();
+  materials = !P || P.canRead('materials') ? await all('materials') : [];
   items = (await all('invItems')).sort((a, b) => String(a.name).localeCompare(String(b.name), 'id'));
   entries = await all('invEntries');
   products = await all('products');
@@ -53,6 +57,10 @@ async function load() {
   await autoSync();
 }
 const itemById = id => items.find(i => i.id === id);
+// Bahan terhubung (kode bahan dipilih di Kelola item). Perangkat tanpa akses bahan tetap tahu item terhubung dari kodenya.
+const matOf = it => materialForItem(it, materials, items);
+const matCode = it => (it && it.materialCode) || matOf(it)?.code || '';
+const isAuto = e => AUTO_INV_SOURCES.has(e?.source);
 const pageActive = () => $('inventory')?.classList.contains('active');
 
 export async function renderInventory() {
@@ -97,7 +105,7 @@ function renderPage() {
 
 function dashHTML() {
   const { from, to } = monthRange(month);
-  const flow = '<div class="inv-flow" aria-label="Alur persediaan"><span class="fl dapur">Dapur</span><span>Bahan masuk</span><i>→</i><span>Dipakai / diolah jadi menu</span><i>→</i><span>Naik ke depan</span><i>→</i><span class="fl depan">Depan</span><span>Stok awal depan</span><i>→</i><span>Terjual</span><i>→</i><span>Sisa</span></div>';
+  const flow = '<div class="inv-flow" aria-label="Alur persediaan"><span class="fl dapur">Dapur</span><span>Bahan masuk (otomatis dari Stok Bahan Baku)</span><i>→</i><span>Dipakai / diolah jadi menu</span><i>→</i><span>Naik ke depan</span><i>→</i><span class="fl depan">Depan</span><span>Stok awal depan</span><i>→</i><span>Terjual</span><i>→</i><span>Sisa</span></div>';
   if (!items.length) return flow + emptyItems();
   const { rows, count } = summarizeAll(items, entries, from, to, low);
   const stats = `<div class="stats inv-stats">
@@ -133,9 +141,9 @@ function entryRows(list, withNaikInfo = false) {
   return list.map(e => {
     const it = itemById(e.itemId);
     const label = e.area === 'depan' ? KIND_LABEL.depan[e.kind] : KIND_LABEL.dapur[e.kind];
-    const info = e.refId ? ' <span class="chip">olahan</span>' : e.source === 'kasir' ? ' <span class="chip">dari kasir</span>' : '';
+    const info = e.refId ? ' <span class="chip">olahan</span>' : e.source === 'kasir' ? ' <span class="chip">dari kasir</span>' : isAuto(e) ? ' <span class="chip">otomatis</span>' : '';
     const readonly = withNaikInfo && e.area === 'dapur';
-    return `<tr><td>${dmy(e.date)}</td><td><b>${esc(it?.name || '(item dihapus)')}</b>${it?.sku ? `<small class="sku">SKU: ${esc(it.sku)}</small>` : ''}</td><td>${readonly ? 'Masuk dari dapur' : esc(label || e.kind)}${info}</td><td class="num"><b>${num(e.qty)}</b> ${esc(unitOf(it))}</td><td>${esc(e.note || '')}</td><td class="act">${readonly ? '<small>diubah di tab Dapur</small>' : `<button class="link" onclick="invEdit('${e.id}')">Edit</button><button class="link danger-link" onclick="invDelete('${e.id}')">Hapus</button>`}</td></tr>`;
+    return `<tr><td>${dmy(e.date)}</td><td><b>${esc(it?.name || '(item dihapus)')}</b>${it?.sku ? `<small class="sku">SKU: ${esc(it.sku)}</small>` : ''}</td><td>${readonly ? 'Masuk dari dapur' : esc(label || e.kind)}${info}</td><td class="num"><b>${num(e.qty)}</b> ${esc(unitOf(it))}</td><td>${esc(e.note || '')}</td><td class="act">${readonly ? '<small>diubah di tab Dapur</small>' : isAuto(e) ? `<small>${e.source === 'pengeluaran' ? 'diubah di Pengeluaran' : 'diubah di Stok Bahan Baku'}</small>` : `<button class="link" onclick="invEdit('${e.id}')">Edit</button><button class="link danger-link" onclick="invDelete('${e.id}')">Hapus</button>`}</td></tr>`;
   });
 }
 function entryList(list, withNaikInfo = false) {
@@ -145,8 +153,8 @@ function entryList(list, withNaikInfo = false) {
     const it = itemById(e.itemId);
     const label = e.area === 'depan' ? KIND_LABEL.depan[e.kind] : KIND_LABEL.dapur[e.kind];
     const ro = withNaikInfo && e.area === 'dapur';
-    const tag = e.refId ? ' <span class="chip">olahan</span>' : e.source === 'kasir' ? ' <span class="chip">dari kasir</span>' : '';
-    return `<article class="exp-card"><div class="exp-card-top"><div><b>${esc(it?.name || '(item dihapus)')}</b>${it?.sku ? `<small class="sku">SKU: ${esc(it.sku)}</small>` : ''}<small>${dmy(e.date)} · ${ro ? 'Masuk dari dapur' : esc(label || e.kind)}${tag}</small></div><strong>${num(e.qty)} ${esc(unitOf(it))}</strong></div>${e.note ? `<p>${esc(e.note)}</p>` : ''}${ro ? '<p>Diubah di tab Dapur</p>' : `<div class="exp-card-actions"><button class="outline" onclick="invEdit('${e.id}')">Edit</button><button class="outline danger" onclick="invDelete('${e.id}')">Hapus</button></div>`}</article>`;
+    const tag = e.refId ? ' <span class="chip">olahan</span>' : e.source === 'kasir' ? ' <span class="chip">dari kasir</span>' : isAuto(e) ? ' <span class="chip">otomatis</span>' : '';
+    return `<article class="exp-card"><div class="exp-card-top"><div><b>${esc(it?.name || '(item dihapus)')}</b>${it?.sku ? `<small class="sku">SKU: ${esc(it.sku)}</small>` : ''}<small>${dmy(e.date)} · ${ro ? 'Masuk dari dapur' : esc(label || e.kind)}${tag}</small></div><strong>${num(e.qty)} ${esc(unitOf(it))}</strong></div>${e.note ? `<p>${esc(e.note)}</p>` : ''}${ro ? '<p>Diubah di tab Dapur</p>' : isAuto(e) ? `<p class="muted">Otomatis — ${e.source === 'pengeluaran' ? 'ubah di Pengeluaran' : 'ubah di Stok Bahan Baku'}</p>` : `<div class="exp-card-actions"><button class="outline" onclick="invEdit('${e.id}')">Edit</button><button class="outline danger" onclick="invDelete('${e.id}')">Hapus</button></div>`}</article>`;
   }).join('');
   return `<div class="exp-desktop">${table}</div><div class="exp-cards">${cards}</div>`;
 }
@@ -161,7 +169,9 @@ function dapurHTML() {
   const shownD = withData(rows);
   const pos = simpleTable(shownD.map(r => `<tr><td class="stick"><b>${esc(r.item.name)}</b><small>${esc(unitOf(r.item) || '—')}${skuTxt(r.item)}</small></td><td class="num">${num(r.awalD)}</td><td class="num">${num(r.dMasuk)}</td><td class="num">${num(r.dPakai)}</td><td class="num">${r.item.hasDepan ? num(r.dNaik) : '—'}</td><td class="num">${num(r.dRusak)}</td><td class="num"><b>${num(r.dSisa)}</b></td></tr>`), ['Item', 'Awal', 'Masuk', 'Dipakai', 'Naik', 'Rusak', 'Sisa'], 'inv-table');
   const list = entries.filter(e => e.area === 'dapur' && e.date >= from && e.date <= to).sort(sortDesc);
-  const actions = `<div class="inv-actions"><button class="btn" onclick="invOpen({area:'dapur',kind:'masuk'})">＋ Bahan masuk</button><button class="outline" onclick="invOlah()">Olah jadi menu</button><button class="outline" onclick="invOpen({area:'dapur',kind:'naik'})">Naik ke depan</button><button class="outline" onclick="invOpen({area:'dapur',kind:'pakai'})">Dipakai</button><button class="outline" onclick="invOpen({area:'dapur',kind:'rusak'})">Rusak</button></div>`;
+  const linked = items.filter(i => matCode(i)).length;
+  const autoNote = `<p class="inv-note">Bahan masuk tercatat <b>otomatis</b> dari Stok Bahan Baku (belanja di Pengeluaran &amp; “Masuk lain”) untuk item yang diberi kode bahan${linked ? ` — ${linked} item terhubung` : ''}. Atur di <button type="button" class="link" onclick="invManageItems()">Kelola item</button>.</p>`;
+  const actions = autoNote + `<div class="inv-actions"><button class="btn" onclick="invOlah()">Olah jadi menu</button><button class="outline" onclick="invOpen({area:'dapur',kind:'naik'})">Naik ke depan</button><button class="outline" onclick="invOpen({area:'dapur',kind:'pakai'})">Dipakai</button><button class="outline" onclick="invOpen({area:'dapur',kind:'rusak'})">Rusak</button></div>`;
   return actions + `<div class="panel exp-panel inv-panel"><div class="panel-head"><h2>Posisi stok dapur</h2><small>${dmy(from)} – ${dmy(to)}</small></div><div class="pad">${pos}${hiddenNote(rows, shownD)}</div></div>
     <div class="panel exp-panel inv-panel"><div class="panel-head"><h2>Catatan dapur</h2><small>${list.length} catatan</small></div><div class="pad">${entryList(list)}</div></div>`;
 }
@@ -234,15 +244,15 @@ function fillEntryItems(keep) {
 }
 function fillKinds(keep) {
   const area = $('ieArea').value, it = itemById($('ieItem').value);
-  let ks = it ? kindsFor(it, area) : [];
+  let ks = it ? kindsFor(it, area, !!matCode(it)) : [];
   if (keep && !ks.includes(keep) && KIND_LABEL[area][keep]) ks = [...ks, keep];
-  $('ieKind').innerHTML = ks.map(k => `<option value="${k}">${KIND_LABEL[area][k]}</option>`).join('');
+  $('ieKind').innerHTML = ks.map(k => `<option value="${k}">${k === 'masuk' && area === 'dapur' ? 'Bahan masuk manual (item belum diberi kode bahan)' : KIND_LABEL[area][k]}</option>`).join('');
   if (keep && ks.includes(keep)) $('ieKind').value = keep;
   fillHint();
 }
 function fillHint() {
   const it = itemById($('ieItem').value), date = $('ieDate').value;
-  if ($('ieSku')) { const ls = linksOf(it); $('ieSku').textContent = it ? (ls.length ? `Terhubung ke: ${ls.map(l => (l.product?.name || l.sku) + (l.sku ? ' [' + l.sku + ']' : '') + (l.mult !== 1 ? ' ×' + num(l.mult) : '')).join(', ')}` : 'Belum terhubung ke produk (isi di Kelola item)') : ''; }
+  if ($('ieSku')) { const ls = linksOf(it), mc = matCode(it); $('ieSku').textContent = it ? (ls.length ? `Terhubung ke: ${ls.map(l => (l.product?.name || l.sku) + (l.sku ? ' [' + l.sku + ']' : '') + (l.mult !== 1 ? ' ×' + num(l.mult) : '')).join(', ')}` : 'Belum terhubung ke produk (isi di Kelola item)') + (mc ? ` · Bahan ${mc}: bahan masuk otomatis dari Stok Bahan Baku` : '') : ''; }
   if (!it || !date) { $('ieHint').textContent = ''; return; }
   const b = balanceAt(it, entries.filter(e => e.id !== $('ieId').value), date), u = unitOf(it);
   const kind = $('ieKind').value;
@@ -251,6 +261,7 @@ function fillHint() {
 function openEntry(opts = {}) {
   if (!items.length) { toast('Tambahkan item persediaan dulu'); invManageItems(); return; }
   const old = opts.id ? entries.find(e => e.id === opts.id) : null;
+  if (isAuto(old)) return toast(old.source === 'pengeluaran' ? 'Catatan otomatis dari belanja — ubah di menu Pengeluaran' : 'Catatan otomatis dari Stok Bahan Baku — ubah di sana');
   $('invEntryForm').reset();
   $('ieId').value = old?.id || '';
   $('ieTitle').textContent = old ? 'Edit catatan persediaan' : 'Catat persediaan';
@@ -271,6 +282,7 @@ async function saveEntry(e) {
   if (!date) return toast('Isi tanggal');
   if (!(qty > 0)) return toast('Jumlah harus lebih dari nol');
   const id = $('ieId').value, old = id ? entries.find(x => x.id === id) : null;
+  if (area === 'dapur' && kind === 'masuk' && !old && matCode(it)) return toast(`${it.name} terhubung ke bahan ${matCode(it)}: bahan masuk dicatat otomatis dari belanja / Stok Bahan Baku`);
   const rec = { id: id || uid(), date, itemId, area, kind, qty, note: $('ieNote').value.trim(), createdAt: old?.createdAt || Date.now() };
   if (old?.refId) rec.refId = old.refId;
   const next = entries.filter(x => x.id !== rec.id).concat(rec);
@@ -339,15 +351,17 @@ async function saveOlah(e) {
 
 // ---------- edit / hapus catatan ----------
 async function editEntry(id) {
-  if (!await askPin('mengubah catatan persediaan')) return;
   const e = entries.find(x => x.id === id);
   if (!e) return;
+  if (!isAuto(e) && !await askPin('mengubah catatan persediaan')) return;
+  if (isAuto(e)) return toast(e.source === 'pengeluaran' ? 'Catatan otomatis dari belanja — ubah di menu Pengeluaran' : 'Catatan otomatis dari Stok Bahan Baku — ubah di sana');
   if (e.refId) openOlah(e.refId); else openEntry({ id });
 }
 async function deleteEntry(id) {
-  if (!await askPin('menghapus catatan persediaan')) return;
   const e = entries.find(x => x.id === id);
   if (!e) return;
+  if (!isAuto(e) && !await askPin('menghapus catatan persediaan')) return;
+  if (isAuto(e)) return toast(e.source === 'pengeluaran' ? 'Catatan otomatis dari belanja — hapus/ubah di menu Pengeluaran' : 'Catatan otomatis dari Stok Bahan Baku — hapus/ubah di sana');
   const group = e.refId ? entries.filter(x => x.refId === e.refId) : [e];
   if (!confirm(e.refId ? 'Catatan ini bagian dari olahan (bahan dipakai + menu hasil). Hapus keduanya?' : 'Hapus catatan ini?')) return;
   for (const x of group) { await revertApplied(x); await del('invEntries', x.id); }
@@ -379,11 +393,33 @@ function bindLinkPicker() {
 async function renderItemList() {
   products = await all('products');
   renderLinkPicker();
-  $('iiList').innerHTML = items.length ? items.map(i => `<div class="master-expense-row"><div class="mrow-head"><b>${esc(i.name)}</b><span class="chip">SKU: ${esc(i.sku || '—')}</span><span class="chip">${esc(unitOf(i) || 'satuan —')}</span><span class="gbadge ${i.hasDepan ? 'g-oper' : 'g-bahan'}">${i.hasDepan ? 'Dapur + Depan' : 'Dapur saja'}</span><button type="button" class="link" onclick="invEditItem('${i.id}')">Edit</button><button type="button" class="link danger-link" onclick="invDelItem('${i.id}')">Hapus</button></div><small>${linksOf(i).length ? 'Terhubung ke ' + linksOf(i).length + ' produk: ' + linkText(i) : 'Belum terhubung ke produk kasir (penjualan tidak tersinkron)'}</small></div>`).join('') : '<div class="empty">Belum ada item.</div>';
+  $('iiList').innerHTML = items.length ? items.map(i => `<div class="master-expense-row"><div class="mrow-head"><b>${esc(i.name)}</b><span class="chip">SKU: ${esc(i.sku || '—')}</span><span class="chip">${esc(unitOf(i) || 'satuan —')}</span><span class="gbadge ${i.hasDepan ? 'g-oper' : 'g-bahan'}">${i.hasDepan ? 'Dapur + Depan' : 'Dapur saja'}</span>${matCode(i) ? `<span class="chip">Bahan: ${esc(matCode(i))}</span>` : ''}<button type="button" class="link" onclick="invEditItem('${i.id}')">Edit</button><button type="button" class="link danger-link" onclick="invDelItem('${i.id}')">Hapus</button></div><small>${linksOf(i).length ? 'Terhubung ke ' + linksOf(i).length + ' produk: ' + linkText(i) : 'Belum terhubung ke produk kasir (penjualan tidak tersinkron)'}</small></div>`).join('') : '<div class="empty">Belum ada item.</div>';
+}
+function fillMaterialSelect(keep, selfId) {
+  const sel = $('iiMaterial'); if (!sel) return;
+  const usedBy = new Map();
+  for (const it of items) if (it.id !== selfId) { const c = normSku(matCode(it)); if (c) usedBy.set(c, it.name); }
+  const list = [...materials].sort((a, b) => String(a.code).localeCompare(String(b.code), 'id', { numeric: true }));
+  const k = normSku(keep);
+  const extra = k && !list.some(m => normSku(m.code) === k) ? `<option value="${esc(keep)}">${esc(keep)} · (kode tidak ditemukan)</option>` : '';
+  sel.innerHTML = '<option value="">— Tidak terhubung —</option>' + extra + list.map(m => { const u = usedBy.get(normSku(m.code)); return `<option value="${esc(m.code)}"${u ? ' disabled' : ''}>${esc(m.code)} · ${esc(m.name)}${m.buyUnit ? ` (${esc(m.buyUnit)})` : ''}${u ? ` — sudah dipakai “${esc(u)}”` : ''}</option>`; }).join('');
+  sel.disabled = !materials.length && !k;
+  sel.value = k ? (list.find(m => normSku(m.code) === k)?.code || keep) : '';
+  materialHint();
+}
+function materialHint() {
+  const h = $('iiMaterialHint'); if (!h) return;
+  const m = materials.find(x => normSku(x.code) === normSku($('iiMaterial').value));
+  if (!materials.length) { h.textContent = 'Belum ada bahan di Stok Bahan Baku (atau perangkat ini tidak punya akses Stok Bahan Baku).'; return; }
+  if (!m) { h.textContent = 'Pilih bahan agar setiap belanja (Pengeluaran) dan “Masuk lain” (Stok Bahan Baku) bahan ini otomatis tercatat sebagai Bahan masuk di dapur.'; return; }
+  const u = ($('iiUnit').value || '').trim().toLowerCase(), bu = String(m.buyUnit || '').trim().toLowerCase(), su = String(m.stockUnit || '').trim().toLowerCase();
+  const unit = u && u === bu && u !== su ? m.buyUnit : (m.stockUnit || m.buyUnit || '');
+  h.innerHTML = `Bahan masuk otomatis dicatat dalam <b>${esc(unit || 'satuan stok')}</b>` + (m.perBuy && Number(m.perBuy) !== 1 && bu !== su ? ` (1 ${esc(m.buyUnit)} = ${num(m.perBuy)} ${esc(m.stockUnit)})` : '') + '. Samakan satuan item dengan satuan beli atau satuan stok bahan.';
 }
 async function openItems() {
   await load();
   $('iiId').value = ''; $('iiName').value = ''; $('iiSku').value = ''; $('iiUnit').value = ''; $('iiDepan').checked = true; $('iiSave').textContent = 'Tambah item';
+  fillMaterialSelect('', '');
   linkSel = new Map(); $('iiLinkSearch').value = '';
   await renderItemList();
   if (!$('invItemDialog').open) $('invItemDialog').showModal();
@@ -399,17 +435,22 @@ async function saveItem(e) {
   products = await all('products');
   const links = [...linkSel].map(([productId, mult]) => ({ productId, sku: products.find(p => p.id === productId)?.sku || '', mult: Number(mult) > 0 ? Number(mult) : 1 }));
   if (sku && items.some(i => i.id !== id && normSku(i.sku) === normSku(sku))) return toast('SKU sudah dipakai item persediaan lain');
+  // Perangkat tanpa akses Stok Bahan Baku tidak melihat daftar bahan: kode lama dipertahankan.
+  const materialCode = materials.length || !old ? ($('iiMaterial')?.value || '').trim() : old.materialCode;
+  const taken = materialCode && items.find(i => i.id !== id && normSku(matCode(i)) === normSku(materialCode));
+  if (taken) return toast(`Kode bahan ${materialCode} sudah dipakai item “${taken.name}”`);
   if (!sku && links.length) { const cand = links[0].sku; if (cand && !items.some(i => i.id !== id && normSku(i.sku) === normSku(cand))) sku = cand; }
-  await put('invItems', { ...(old || {}), id: id || uid(), name, sku, unit: $('iiUnit').value.trim(), hasDepan: $('iiDepan').checked, productId: '', links, createdAt: old?.createdAt || Date.now() });
+  await put('invItems', { ...(old || {}), id: id || uid(), name, sku, unit: $('iiUnit').value.trim(), hasDepan: $('iiDepan').checked, productId: '', links, ...(materialCode === undefined ? {} : { materialCode }), createdAt: old?.createdAt || Date.now() });
+  await window.bahanSyncInv?.({ quiet: true });
   await openItems();
   await renderInventory();
-  toast(id ? 'Item diperbarui' : 'Item ditambahkan');
+  toast((id ? 'Item diperbarui' : 'Item ditambahkan') + (materialCode ? ` · bahan masuk ${materialCode} tercatat otomatis` : ''));
 }
 async function editItem(id) {
   if (!await askPin('mengubah item persediaan')) return;
   const i = itemById(id);
   if (!i) return;
-  $('iiId').value = i.id; $('iiName').value = i.name; $('iiSku').value = i.sku || ''; $('iiUnit').value = i.unit || ''; $('iiDepan').checked = !!i.hasDepan; linkSel = new Map(itemLinks(i, products).filter(l => l.productId).map(l => [l.productId, l.mult])); $('iiLinkSearch').value = ''; renderLinkPicker(); $('iiSave').textContent = 'Simpan perubahan';
+  $('iiId').value = i.id; $('iiName').value = i.name; $('iiSku').value = i.sku || ''; $('iiUnit').value = i.unit || ''; $('iiDepan').checked = !!i.hasDepan; fillMaterialSelect(matCode(i), i.id); linkSel = new Map(itemLinks(i, products).filter(l => l.productId).map(l => [l.productId, l.mult])); $('iiLinkSearch').value = ''; renderLinkPicker(); $('iiSave').textContent = 'Simpan perubahan';
   $('iiName').focus();
 }
 async function deleteItem(id) {
@@ -497,7 +538,9 @@ function bind() {
   $('ieDate').onchange = fillHint;
   $('ioSave').onclick = saveOlah;
   $('iiSave').onclick = saveItem;
-  $('iiReset').onclick = () => { $('iiId').value = ''; $('iiSku').value = ''; $('iiName').value = ''; $('iiUnit').value = ''; $('iiDepan').checked = true; linkSel = new Map(); renderLinkPicker(); $('iiSave').textContent = 'Tambah item'; };
+  $('iiReset').onclick = () => { $('iiId').value = ''; $('iiSku').value = ''; $('iiName').value = ''; $('iiUnit').value = ''; $('iiDepan').checked = true; fillMaterialSelect('', ''); linkSel = new Map(); renderLinkPicker(); $('iiSave').textContent = 'Tambah item'; };
+  $('iiMaterial').onchange = () => { const m = materials.find(x => normSku(x.code) === normSku($('iiMaterial').value)); if (m) { if (!$('iiName').value.trim()) $('iiName').value = m.name; if (!$('iiUnit').value.trim()) $('iiUnit').value = m.buyUnit || m.stockUnit || ''; } materialHint(); };
+  $('iiUnit').addEventListener('input', materialHint);
   $('iiSeed').onclick = seedItems;
 }
 bind();

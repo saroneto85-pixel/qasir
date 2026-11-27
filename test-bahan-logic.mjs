@@ -1,7 +1,7 @@
 // Uji Stok Bahan Baku & HPP Menu. Jalankan: node test-bahan-logic.mjs
 import { readFileSync } from 'node:fs';
 import { readXlsx } from './xlsx-read.js';
-import { parseHppWorkbook, mergeImport, menuCost, menuStatus, unitCost, stockSummary, movements, runBalance, productionMenus, invItemForMaterial, normCode, invQtyFromExpense, invEntriesFromExpenses, inventoryValue, auditBahan } from './bahan-logic.js';
+import { parseHppWorkbook, mergeImport, menuCost, menuStatus, unitCost, stockSummary, movements, runBalance, invItemForMaterial, materialForItem, normCode, invQtyFromExpense, invQtyFromStock, invEntriesFromExpenses, inventoryValue, auditBahan } from './bahan-logic.js';
 
 let pass = 0, fail = 0;
 const ok = (c, name) => { if (c) pass++; else { fail++; console.log('GAGAL:', name); } };
@@ -102,32 +102,40 @@ eq(S4.B038.status, 'menipis', 'di bawah stok minimum: menipis');
 const rows = runBalance(movements(data).get('B038'));
 eq(rows.map(r => r.kind), ['awal', 'beli', 'jual', 'jual', 'jual', 'jual', 'rusak'], 'kartu stok urut per tanggal & jenis');
 
-// ---------- 3) Kaitan dengan Kontrol Persediaan (SKU) ----------
+// ---------- 3) Kaitan dengan Kontrol Persediaan (kode bahan) — sejak 2.12 ----------
 const invItems = [
-  { id: 'iR', name: 'Rendang', hasDepan: true, links: [{ productId: 'P1', mult: 1 }] },  // masakan: dipantau di Persediaan
-  { id: 'iN', name: 'Ikan Nila segar', sku: 'B200', hasDepan: false },                  // bahan: dipantau di Persediaan
-  { id: 'iA', name: 'Ayam', hasDepan: true, links: [{ productId: 'P2', mult: 1 }, { productId: 'P3', mult: 1 }] }
+  { id: 'iR', name: 'Rendang', hasDepan: true, links: [{ productId: 'P1', mult: 1 }] },              // masakan (tanpa bahan)
+  { id: 'iN', name: 'Ikan Nila segar', sku: 'IKN', materialCode: 'b200', unit: 'kg', hasDepan: false }, // terhubung lewat kode bahan
+  { id: 'iD', name: 'Daging (lama)', sku: 'B038', hasDepan: false },                                   // data lama: SKU = kode bahan
+  { id: 'iX', name: 'Santan', sku: 'B121', materialCode: '', hasDepan: false }                         // sengaja tidak dihubungkan
 ];
-const prodSet = productionMenus(menus, prods, invItems);
-eq([...prodSet.keys()], ['mr'], 'menu Rendang dipotong saat produksi; item Ayam (2 produk) tidak');
-ok(invItemForMaterial(materials[3], invItems)?.id === 'iN', 'bahan B200 dikenali dipantau di Persediaan (SKU = kode bahan)');
+ok(invItemForMaterial(materials[3], invItems)?.id === 'iN', 'B200 terhubung ke item lewat kode bahan (huruf kecil dikenali)');
+ok(invItemForMaterial(materials[0], invItems)?.id === 'iD', 'data lama: SKU item = kode bahan tetap dikenali');
+ok(invItemForMaterial(materials[1], invItems) === null, 'materialCode kosong = sengaja tidak terhubung walau SKU sama');
+eq([materialForItem(invItems[1], materials, invItems)?.code, materialForItem(invItems[2], materials, invItems)?.code, materialForItem(invItems[3], materials, invItems), materialForItem(invItems[0], materials, invItems)],
+  ['B200', 'B038', null, null], 'kebalikan: bahan untuk tiap item');
 const invEntries = [
-  { id: 'ie1', itemId: 'iR', area: 'dapur', kind: 'masuk', qty: 12, date: '2026-11-01' }, // masak 12 porsi rendang
+  { id: 'ie1', itemId: 'iR', area: 'dapur', kind: 'hasil', qty: 12, date: '2026-11-01' }, // masak 12 porsi rendang (olah jadi menu)
   { id: 'ie2', itemId: 'iR', area: 'dapur', kind: 'naik', qty: 12, date: '2026-11-01' },
-  { id: 'ie3', itemId: 'iR', area: 'depan', kind: 'jual', qty: 5, date: '2026-11-02' }
+  { id: 'ie3', itemId: 'iN', area: 'dapur', kind: 'pakai', qty: 2, date: '2026-11-04' }
 ];
-const P = Object.fromEntries(stockSummary({ ...data, invItems, invEntries, expenses: [...expenses, { id: 'e9', date: '2026-11-03', materialCode: 'B200', qty: 5, amount: 200000 }] }, '2026-11-01', '2026-11-30').map(s => [s.code, s]));
-near(P.B038.useProd, 12 * 1000 / 6, 'rendang: bahan dipotong dari masakan 12 porsi (bukan dari 5 porsi terjual)');
-near(P.B038.useSale, 5 * 50, 'sate (tidak di Persediaan): tetap dipotong per penjualan');
-eq(P.B200.status, 'persediaan', 'ikan nila: status dipantau di Persediaan');
-near(P.B200.buyValue, 200000, 'ikan nila: belanja tetap terlihat nilainya');
-near(P.B200.close, 0, 'ikan nila: tidak dihitung ganda di Stok Bahan Baku');
-const P2 = Object.fromEntries(stockSummary({ ...data, invItems, invEntries: [...invEntries, { id: 'exp-e9', itemId: 'iN', area: 'dapur', kind: 'masuk', qty: 5, date: '2026-11-03' }, { id: 'u', itemId: 'iN', area: 'dapur', kind: 'pakai', qty: 2, date: '2026-11-04' }] }, '2026-11-01', '2026-11-30').map(s => [s.code, s]));
-near(P2.B200.close, 3, 'ikan nila: sisa dibaca dari saldo dapur Persediaan (masuk 5 − pakai 2)');
-// item Persediaan yang dipakai 2 menu ber-resep -> tetap per penjualan
-const menus2 = [...menus, { id: 'm3', code: 'M10', name: 'Ayam B', sku: 'AB', items: [{ code: 'B038', qty: 1 }] }];
-const prods2 = prods;
-ok(!productionMenus(menus2, prods2, invItems).has('ms'), 'item Persediaan untuk 2 menu: tidak bisa dipastikan resepnya -> per penjualan');
+const withInv = { ...data, invItems, invEntries, expenses: [...expenses, { id: 'e9', date: '2026-11-03', materialCode: 'B200', qty: 5, amount: 200000 }] };
+const P = Object.fromEntries(stockSummary(withInv, '2026-11-01', '2026-11-30').map(s => [s.code, s]));
+const P0 = Object.fromEntries(stockSummary({ ...withInv, invItems: [], invEntries: [] }, '2026-11-01', '2026-11-30').map(s => [s.code, s]));
+eq(['B038', 'B121', 'B200'].map(k => P[k].close), ['B038', 'B121', 'B200'].map(k => P0[k].close), 'Persediaan tidak mengubah stok bahan (hanya memantau, tidak dobel)');
+near(P.B038.useSale, S.B038.useSale, 'rendang: bahan tetap dipotong per penjualan sesuai resep');
+near(P.B200.close, 5, 'ikan nila: stok bahan = belanja 5 kg (pemakaian dapur di Persediaan tidak memotong)');
+eq(P.B200.status, 'aman', 'ikan nila: status normal (tidak lagi "dipantau di Persediaan")');
+eq(P.B200.invItem?.id, 'iN', 'ringkasan tetap menunjukkan item Persediaan terhubung');
+{
+  const ents = [{ id: 'k1', code: 'B200', date: '2026-11-06', kind: 'masuk', qty: 3, note: 'kiriman' }, { id: 'k2', code: 'B200', date: '2026-11-06', kind: 'rusak', qty: 1 }, { id: 'k3', code: 'B999', date: '2026-11-06', kind: 'masuk', qty: 1 }];
+  const w = invEntriesFromExpenses(withInv.expenses, materials, invItems, ents);
+  eq([...w.keys()].sort(), ['exp-e1', 'exp-e9', 'mat-k1'], 'bahan masuk otomatis: belanja B038 (item lama) & B200 + masuk lain B200; rusak/kode asing/tak terhubung diabaikan');
+  eq([w.get('mat-k1').itemId, w.get('mat-k1').qty, w.get('mat-k1').source, w.get('mat-k1').kind], ['iN', 3, 'bahan', 'masuk'], 'masuk lain 3 kg -> Bahan masuk dapur 3 kg');
+  eq(w.get('exp-e9').qty, 5, 'belanja 5 kg -> Bahan masuk 5 kg');
+  eq(invQtyFromStock(2500, { buyUnit: 'kg', perBuy: 1000, stockUnit: 'g' }, { unit: 'kg' }), 2.5, 'masuk lain 2500 g -> item bersatuan kg: 2,5');
+  eq(invQtyFromStock(2500, { buyUnit: 'kg', perBuy: 1000, stockUnit: 'g' }, { unit: 'g' }), 2500, 'masuk lain 2500 g -> item bersatuan g: 2500');
+}
 
 // ---------- konversi satuan belanja -> item Persediaan ----------
 {
@@ -143,9 +151,10 @@ ok(!productionMenus(menus2, prods2, invItems).has('ms'), 'item Persediaan untuk 
 }
 
 {
-  const S = stockSummary({ materials: [{ id: 'k', code: 'B038', name: 'Daging', buyUnit: 'kg', buyPrice: 135000, perBuy: 1000, stockUnit: 'g' }], menus: [], products: [], transactions: [], expenses: [], entries: [],
-    invItems: [{ id: 'I1', sku: 'B038', unit: 'kg', hasDepan: false }], invEntries: [{ id: 'z', itemId: 'I1', area: 'dapur', kind: 'masuk', qty: 2, date: '2026-11-01' }] }, '2026-11-01', '2026-11-30')[0];
-  eq([S.close, S.unit, S.value], [2, 'kg', 270000], 'bahan di Persediaan (kg): sisa 2 kg bernilai Rp270.000');
+  const S = stockSummary({ materials: [{ id: 'k', code: 'B038', name: 'Daging', buyUnit: 'kg', buyPrice: 135000, perBuy: 1000, stockUnit: 'g' }], menus: [], products: [], transactions: [], entries: [],
+    expenses: [{ id: 'e', date: '2026-11-01', materialCode: 'B038', qty: 2, amount: 270000 }],
+    invItems: [{ id: 'I1', materialCode: 'B038', unit: 'kg', hasDepan: false }], invEntries: [{ id: 'exp-e', itemId: 'I1', area: 'dapur', kind: 'masuk', qty: 2, date: '2026-11-01' }, { id: 'p', itemId: 'I1', area: 'dapur', kind: 'pakai', qty: 1, date: '2026-11-02' }] }, '2026-11-01', '2026-11-30')[0];
+  eq([S.close, S.unit, S.value], [2000, 'g', 270000], 'bahan terhubung Persediaan: stok & nilai dihitung di Stok Bahan Baku (2000 g = Rp270.000)');
 }
 
 // ---------- nilai persediaan untuk Pembukuan (tanpa dobel hitung) ----------
@@ -155,7 +164,7 @@ ok(!productionMenus(menus2, prods2, invItems).has('ms'), 'item Persediaan untuk 
     menus: [{ id: 'M1', code: 'M01', sku: 'M01', name: 'Rendang', portions: 10, items: [{ code: 'B1', qty: 1000 }] },
             { id: 'M2', code: 'M02', sku: 'M02', name: 'Gulai', portions: 10, items: [{ code: 'B1', qty: 500 }] }],
     products: [{ id: 'P1', sku: 'M01', name: 'Rendang', stock: 5, costPrice: 10000 },   // resep dipotong per penjualan -> tidak dinilai
-               { id: 'P2', sku: 'M02', name: 'Gulai', stock: 4, costPrice: 5000, invItemId: 'I2' }, // dipotong saat produksi -> dinilai
+               { id: 'P2', sku: 'M02', name: 'Gulai', stock: 4, costPrice: 5000, invItemId: 'I2' }, // ber-resep -> tidak dinilai
                { id: 'P3', sku: 'X1', name: 'Kerupuk', stock: 10, costPrice: 1000 },       // tanpa resep -> dinilai
                { id: 'P4', sku: 'X2', name: 'Es teh', stock: null, costPrice: 2000 }],
     transactions: [], expenses: [{ id: 'e1', date: '2026-11-02', materialCode: 'B1', qty: 2, amount: 200000 }], entries: [],
@@ -163,8 +172,8 @@ ok(!productionMenus(menus2, prods2, invItems).has('ms'), 'item Persediaan untuk 
   };
   const v = inventoryValue(D, '2026-11-30');
   eq(v.bahan, 200000, 'nilai bahan akhir bulan = 2000 g × Rp100/g');
-  eq(v.dikecualikan, 50000, 'produk ber-resep per penjualan tidak dinilai (bahannya masih di stok)');
-  eq(v.produk, 30000, 'dinilai: Gulai (dipotong saat produksi) 4×5.000 + Kerupuk (tanpa resep) 10×1.000');
+  eq(v.dikecualikan, 70000, 'produk ber-resep tidak dinilai (bahannya masih di Stok Bahan Baku sampai terjual)');
+  eq(v.produk, 10000, 'dinilai: hanya Kerupuk (tanpa resep) 10×1.000');
   eq(v.total, v.bahan + v.produk, 'total = bahan + produk');
   eq(inventoryValue(D, '2026-11-01').bahan, 0, 'sebelum belanja: nilai bahan 0');
 }
@@ -204,6 +213,14 @@ ok(!productionMenus(menus2, prods2, invItems).has('ms'), 'item Persediaan untuk 
   const A = auditBahan({ materials: [{ id: 'a', code: 'B1', name: 'Daging', buyUnit: 'kg', buyPrice: 1, perBuy: 1, stockUnit: 'kg' }], menus: [], products: [], transactions: [], expenses: [], entries: [], invItems: [{ id: 'I', sku: 'B1' }],
     invEntries: [{ id: 'exp-1', itemId: 'I', area: 'dapur', kind: 'masuk', qty: 2, date: '2026-11-05', source: 'pengeluaran' }, { id: 'm', itemId: 'I', area: 'dapur', kind: 'masuk', qty: 2, date: '2026-11-05' }] }, { today: '2026-11-30' });
   ok(A.some(a => /dua kali/.test(a.title)), 'audit: Bahan masuk manual kembar dengan belanja otomatis');
+}
+
+{
+  const mats = [{ id: 'a', code: 'B1', name: 'Daging', buyUnit: 'kg', buyPrice: 100000, perBuy: 1000, stockUnit: 'g' }];
+  const A = auditBahan({ materials: mats, menus: [], products: [], transactions: [], expenses: [], entries: [], invEntries: [],
+    invItems: [{ id: 'i1', name: 'Daging dapur', materialCode: 'B1' }, { id: 'i2', name: 'Daging cadangan', materialCode: 'b1' }, { id: 'i3', name: 'Bawang', materialCode: 'B77' }] }, { today: '2026-11-30' });
+  ok(A.some(a => /tidak ada/.test(a.title) && a.area === 'Persediaan'), 'audit: item Persediaan berkode bahan tak dikenal');
+  ok(A.some(a => /lebih dari satu item/.test(a.title)), 'audit: satu kode bahan dihubungkan ke dua item');
 }
 
 console.log(`test-bahan-logic: ${pass} lulus, ${fail} gagal`);

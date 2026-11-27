@@ -12,7 +12,7 @@ export const AREA = { dapur: 'Dapur', depan: 'Depan' };
 export const KIND_LABEL = {
   dapur: {
     awal: 'Stok awal dapur',
-    masuk: 'Bahan masuk / masak / beli',
+    masuk: 'Bahan masuk',
     hasil: 'Hasil olahan',
     pakai: 'Dipakai / diolah',
     naik: 'Naik ke depan',
@@ -42,10 +42,14 @@ export function monthRange(ym) {
   return { from: `${ym}-01`, to: `${ym}-${pad(last)}`, days: last };
 }
 
-// Jenis catatan yang masuk akal untuk sebuah item pada sebuah bagian.
-export function kindsFor(item, area) {
+// Jenis catatan MANUAL yang boleh dipilih untuk sebuah item pada sebuah bagian (sejak 2.12).
+//   - Bahan masuk tidak diketik di sini: item terhubung kode bahan menerimanya otomatis dari Stok Bahan Baku
+//     (belanja & masuk lain); masakan/menu masuk dapur lewat "Olah jadi menu" (hasil olahan).
+//   - Pengecualian: item bahan (dapur saja) yang BELUM diberi kode bahan masih boleh "Bahan masuk" manual.
+export function kindsFor(item, area, linked = false) {
   if (area === 'depan') return ['rusak', 'awal']; // penjualan diambil otomatis dari kasir (SKU)
-  return item && item.hasDepan ? ['masuk', 'naik', 'rusak', 'awal'] : ['masuk', 'pakai', 'rusak', 'awal'];
+  if (item && item.hasDepan) return ['naik', 'rusak', 'awal'];
+  return linked ? ['pakai', 'rusak', 'awal'] : ['masuk', 'pakai', 'rusak', 'awal'];
 }
 
 function applyEntry(b, e) {

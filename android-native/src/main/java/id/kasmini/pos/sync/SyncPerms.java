@@ -13,7 +13,7 @@ import java.util.TreeSet;
  * Izin akses perangkat tambahan, diatur di Perangkat Utama.
  *
  * Kunci menu  : transaction, history, products, customers, inventory, bahan, hpp, expenses,
- *               reports, neraca, pembukuan, evaluasi, assets, debts, settings
+ *               neraca, pembukuan, evaluasi, assets, debts, settings
  * Kunci fitur : cost (HPP/harga modal & laba), txEdit (edit/hapus transaksi tersimpan),
  *               salary (data gaji karyawan), data (cadangkan/pulihkan/hapus/ekspor)
  *
@@ -24,7 +24,7 @@ import java.util.TreeSet;
 public final class SyncPerms {
     public static final List<String> PAGES = Collections.unmodifiableList(Arrays.asList(
             "transaction", "history", "products", "customers", "inventory", "bahan", "hpp", "expenses",
-            "reports", "neraca", "pembukuan", "evaluasi", "assets", "debts", "settings"));
+            "neraca", "pembukuan", "evaluasi", "assets", "debts", "settings"));
     public static final List<String> FEATURES = Collections.unmodifiableList(Arrays.asList("cost", "txEdit", "salary", "data"));
 
     /** Tabel yang selalu dibutuhkan kasir. */
@@ -39,7 +39,7 @@ public final class SyncPerms {
         READ.put("assets", Arrays.asList("assets", "neraca", "pembukuan", "evaluasi"));
         READ.put("liabilities", Arrays.asList("debts", "pembukuan", "evaluasi"));
         for (String s : new String[]{"expenses", "expenseTypes", "expenseItems"})
-            READ.put(s, Arrays.asList("expenses", "bahan", "pembukuan", "evaluasi", "reports+cost"));
+            READ.put(s, Arrays.asList("expenses", "bahan", "pembukuan", "evaluasi"));
         READ.put("employees", Arrays.asList("salary"));
         READ.put("salaryPayments", Arrays.asList("salary"));
         READ.put("invItems", Arrays.asList("inventory", "bahan"));

@@ -1,11 +1,13 @@
-# Panduan Stok Bahan Baku & HPP Menu — KASIR 2.9.0
+# Panduan Stok Bahan Baku & HPP Menu — KASIR 2.12.0
 
 ## Alur data
 ```
 Pengeluaran (belanja bahan, Kode Bahan B001) ──► Stok Bahan Baku  (+ stok)
 Kasir (jual produk, SKU = Kode Menu M01) ──► HPP Menu (resep) ──► Stok Bahan Baku  (− stok)
-Kode bahan = SKU item Persediaan ──► dipantau di Kontrol Persediaan ("Bahan masuk")
+Belanja / "Masuk lain" bahan B001 ──► item Persediaan ber-Kode Bahan B001 ("Bahan masuk" dapur, otomatis)
 ```
+Pembagian peran: **Stok Bahan Baku & HPP Menu** = arus transaksi (bahan & uang).
+**Kontrol Persediaan** = hanya memantau stok fisik di Dapur dan Depan.
 
 ## Mulai pertama kali
 1. **Stok Bahan Baku → Impor Excel HPP** → pilih file format HPP (sheet Bahan_Baku, Menu, Resep).
@@ -22,9 +24,15 @@ Kode bahan = SKU item Persediaan ──► dipantau di Kontrol Persediaan ("Baha
 - **Rusak/terbuang**: Catat → Rusak.
 - Filter **Perlu belanja** menampilkan bahan menipis/habis (isi *Stok minimum* di Edit bahan).
 
-## Bahan & menu yang dipantau di Kontrol Persediaan
-- Ubah SKU item Persediaan menjadi kode bahan (mis. `B038`) bila bahan itu ingin dipantau di Persediaan. Belanja B038 otomatis tercatat sebagai *Bahan masuk* dapur di Persediaan; catat pemakaian/opname bahan itu di Persediaan.
-- Menu yang porsinya dipantau di Persediaan (produk terhubung ke item Persediaan bagian depan): bahan dipotong saat masakan dicatat di dapur, bukan per penjualan.
+## Menghubungkan item Kontrol Persediaan dengan bahan
+- Persediaan → **Kelola item** → pilih **Kode bahan (Stok Bahan Baku)** dari daftar. Satu bahan hanya untuk satu item.
+- Setelah terhubung, setiap belanja bahan itu di Pengeluaran dan setiap “Masuk lain” di Stok Bahan Baku **otomatis** tercatat
+  sebagai *Bahan masuk* di dapur (bertanda “otomatis”). Mengubah/menghapus belanja langsung membetulkan catatan ini.
+- Tidak ada lagi tombol **＋ Bahan masuk** manual. Masakan/menu masuk dapur lewat **Olah jadi menu**.
+  Item bahan yang belum diberi kode bahan masih boleh mencatat bahan masuk manual dari form Catat.
+- Satuan: samakan satuan item dengan satuan beli (mis. kg) atau satuan stok bahan (mis. g); jumlah dikonversi otomatis.
+- Stok & nilai bahan selalu dihitung di Stok Bahan Baku (belanja + masuk − penjualan sesuai resep − pemakaian/rusak, opname).
+  Catatan dipakai/naik/rusak di Persediaan hanya untuk pemantauan dan tidak memotong stok bahan (tidak dobel).
 
 ## Tips
 - Satuan stok sebaiknya satuan terkecil yang dipakai di resep (g, ml, butir). *Isi per satuan beli* = berapa satuan stok dalam 1 satuan beli (1 kg = 1000 g).

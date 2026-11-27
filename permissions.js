@@ -10,7 +10,6 @@ export const PAGE_LABELS = {
   bahan: 'Stok Bahan Baku (termasuk harga beli bahan)',
   hpp: 'HPP Menu',
   expenses: 'Pengeluaran',
-  reports: 'Laporan penjualan',
   debts: 'Hutang & Piutang',
   assets: 'Aset & Penyusutan',
   neraca: 'Neraca Awal',
@@ -39,9 +38,9 @@ const READ = {
   openingBalance: ['neraca', 'pembukuan', 'evaluasi'],
   assets: ['assets', 'neraca', 'pembukuan', 'evaluasi'],
   liabilities: ['debts', 'pembukuan', 'evaluasi'],
-  expenses: ['expenses', 'bahan', 'pembukuan', 'evaluasi', 'reports+cost'],
-  expenseTypes: ['expenses', 'bahan', 'pembukuan', 'evaluasi', 'reports+cost'],
-  expenseItems: ['expenses', 'bahan', 'pembukuan', 'evaluasi', 'reports+cost'],
+  expenses: ['expenses', 'bahan', 'pembukuan', 'evaluasi'],
+  expenseTypes: ['expenses', 'bahan', 'pembukuan', 'evaluasi'],
+  expenseItems: ['expenses', 'bahan', 'pembukuan', 'evaluasi'],
   employees: ['salary'],
   salaryPayments: ['salary'],
   invItems: ['inventory', 'bahan'],
@@ -72,7 +71,7 @@ export function makePerms(keys) {
   };
   return {
     full, keys: full ? null : [...set].sort(), has, canRead,
-    canPage: p => p === 'dashboard' || p === 'settings' || has(p) // Pengaturan selalu terbuka untuk bagian Perangkat & printer
+    canPage: p => p === 'dashboard' || p === 'settings' || p === 'reports' || has(p) // Laporan penjualan terbuka untuk semua; Pengaturan untuk Perangkat & printer
   };
 }
 
@@ -117,7 +116,7 @@ export function applyPerms() {
   // kartu beranda
   const hideCard = (id, ok) => { const a = document.getElementById(id)?.closest('article, .panel'); if (a) a.hidden = !ok; };
   hideCard('todayProfit', P.has('cost'));
-  hideCard('rProfit', P.has('cost'));
+  hideCard('rProfit', P.has('pembukuan')); // laba bersih = hasil Pembukuan
   hideCard('todayExpense', P.has('expenses'));
   const inv = document.getElementById('invDashPanel');
   if (inv) inv.hidden = !P.has('inventory');

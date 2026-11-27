@@ -378,7 +378,6 @@ main{max-width:860px;margin-left:auto;margin-right:auto}
 
 /* ---- 2.10.0: perapian tampilan ---- */
 /* Beranda sudah punya kotak "Transaksi Baru" di Menu Utama: tombol melayang tidak menutupi menu */
-body[data-page="dashboard"] .bottom-transaction{display:none!important}
 /* Kartu stok bahan: 4 kolom ringkas */
 .mc-table td small{display:block}
 .mc-table .mc-in{color:#17634f;font-weight:600}.mc-table .mc-out{color:#b42318;font-weight:600}

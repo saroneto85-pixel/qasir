@@ -8,12 +8,13 @@
 //   expenses        { ..., materialCode:'B001', qty (satuan beli), amount }   -> belanja bahan
 //   transactions    { date, items:[{ productId, sku, qty }] }                  -> pemakaian bahan (resep)
 //
-// Kaitan dengan Kontrol Persediaan (melalui SKU):
-//   - Bahan yang kodenya sama dengan SKU item Persediaan -> stoknya dipantau di Persediaan
-//     (belanja dicatat otomatis sebagai "Bahan masuk" di Persediaan; tidak dihitung ganda di sini).
-//   - Menu yang produknya terhubung ke SATU item Persediaan bagian depan (masakan) -> bahan dipotong saat
-//     dapur mencatat masakan ("Bahan masuk / masak" & "Hasil olahan"), bukan per penjualan.
-//   - Selebihnya: belanja menambah stok bahan, penjualan mengurangi stok bahan sesuai resep.
+// Pembagian peran (sejak 2.12):
+//   - Stok Bahan Baku & HPP Menu = arus transaksi (bahan & uang): belanja / masuk lain menambah stok,
+//     penjualan mengurangi stok sesuai resep, pemakaian lain / rusak / opname menyesuaikan.
+//   - Kontrol Persediaan = pemantauan fisik di Dapur & Depan. Item Persediaan yang diberi KODE BAHAN
+//     (invItems.materialCode) otomatis menerima catatan "Bahan masuk" dari setiap belanja (Pengeluaran)
+//     dan "Masuk lain" (Stok Bahan Baku) bahan tersebut — tidak ada input bahan masuk manual lagi.
+//     Persediaan tidak mengubah stok bahan (tidak ada dobel hitung).
 //
 // Stok tidak pernah diketik manual: selalu dihitung ulang dari catatan di atas, sehingga mengedit/menghapus
 // transaksi atau pengeluaran langsung membetulkan stok (dan aman untuk sinkronisasi antar perangkat).
@@ -127,12 +128,30 @@ const linksOfItem = (item, products) => {
   return out;
 };
 
-/** Item Persediaan yang memantau sebuah bahan (SKU item = kode bahan, atau material.invItemId). */
+/**
+ * Item Persediaan yang terhubung ke sebuah bahan.
+ * Utama: item.materialCode (dipilih di Kelola item Persediaan; '' = sengaja tidak dihubungkan).
+ * Data lama (sebelum 2.12, item.materialCode belum ada): material.invItemId atau SKU item = kode bahan.
+ */
 export function invItemForMaterial(material, invItems) {
   if (!material) return null;
-  if (material.invItemId) { const it = (invItems || []).find(x => x.id === material.invItemId); if (it) return it; }
-  const code = normCode(material.code);
-  return code ? (invItems || []).find(it => normCode(it.sku) === code) || null : null;
+  const code = normCode(material.code), list = invItems || [];
+  if (!code) return null;
+  const explicit = list.find(it => it.materialCode !== undefined && it.materialCode !== null && normCode(it.materialCode) === code);
+  if (explicit) return explicit;
+  const legacy = it => it.materialCode === undefined || it.materialCode === null;
+  if (material.invItemId) { const it = list.find(x => x.id === material.invItemId && legacy(x)); if (it) return it; }
+  return list.find(it => legacy(it) && normCode(it.sku) === code) || null;
+}
+
+/** Bahan yang terhubung ke sebuah item Persediaan (kebalikan invItemForMaterial), atau null. */
+export function materialForItem(item, materials, invItems = [item]) {
+  if (!item) return null;
+  if (item.materialCode !== undefined && item.materialCode !== null) {
+    const code = normCode(item.materialCode);
+    return code ? (materials || []).find(m => normCode(m.code) === code) || null : null;
+  }
+  return (materials || []).find(m => invItemForMaterial(m, invItems)?.id === item.id) || null;
 }
 
 const unitKey = u => String(u ?? '').trim().toLowerCase();
@@ -149,11 +168,23 @@ export function invQtyFromExpense(expense, material, item) {
   return r6(qty);
 }
 
+/** Jumlah "Masuk lain" Stok Bahan Baku (dalam satuan stok bahan) dalam satuan item Persediaan. */
+export function invQtyFromStock(qty, material, item) {
+  const per = n(material?.perBuy) > 0 ? n(material.perBuy) : 1;
+  const iu = unitKey(item?.unit), bu = unitKey(material?.buyUnit), su = unitKey(material?.stockUnit);
+  return r6(iu && iu === bu && iu !== su ? n(qty) / per : n(qty));
+}
+
+/** Sumber catatan otomatis di Persediaan (tidak boleh diedit manual di sana). */
+export const AUTO_INV_SOURCES = new Set(['pengeluaran', 'bahan']);
+
 /**
- * Catatan "Bahan masuk" Persediaan yang seharusnya ada untuk belanja bahan yang dipantau di Persediaan.
- * id 'exp-<idPengeluaran>' agar idempoten (dan aman saat beberapa perangkat menghitungnya bersamaan).
+ * Catatan "Bahan masuk" Persediaan yang seharusnya ada untuk item yang terhubung ke bahan:
+ *   - setiap belanja bahan di Pengeluaran   -> id 'exp-<idPengeluaran>'
+ *   - setiap "Masuk lain" di Stok Bahan Baku -> id 'mat-<idCatatan>'
+ * Id tetap agar idempoten (aman saat beberapa perangkat menghitungnya bersamaan).
  */
-export function invEntriesFromExpenses(expenses, materials, invItems) {
+export function invEntriesFromExpenses(expenses, materials, invItems, entries = []) {
   const mats = indexByCode(materials), out = new Map();
   for (const x of expenses || []) {
     const m = mats.get(normCode(x.materialCode)), it = m && invItemForMaterial(m, invItems);
@@ -161,32 +192,18 @@ export function invEntriesFromExpenses(expenses, materials, invItems) {
     out.set('exp-' + x.id, { id: 'exp-' + x.id, itemId: it.id, area: 'dapur', kind: 'masuk', qty: invQtyFromExpense(x, m, it), date: x.date,
       note: `Belanja ${m.code} (Pengeluaran)`, source: 'pengeluaran', expenseId: x.id });
   }
-  return out;
-}
-
-/**
- * Menu yang bahan bakunya dipotong saat produksi di Persediaan.
- * Syarat: produk menu terhubung ke item Persediaan bagian depan, dan item itu hanya mewakili satu menu
- * ber-resep (bila satu item dipakai beberapa menu, tidak bisa dipastikan resep mana -> tetap per penjualan).
- * Hasil: Map menuId -> { item, mult }
- */
-export function productionMenus(menus, products, invItems) {
-  const out = new Map();
-  const withRecipe = (menus || []).filter(m => (m.items || []).length);
-  for (const it of (invItems || []).filter(i => i.hasDepan)) {
-    const L = linksOfItem(it, products);
-    const hits = [];
-    for (const m of withRecipe) {
-      const p = productForMenu(m, products);
-      const key = normCode(p?.sku || m.sku || m.code);
-      const l = L.find(x => (p && x.productId === p.id) || (key && x.key === key));
-      if (l) hits.push({ m, l });
-    }
-    // Hanya bila item mewakili tepat satu produk (item untuk banyak produk tidak bisa dipastikan resepnya).
-    if (hits.length === 1 && L.length === 1) out.set(hits[0].m.id, { item: it, mult: hits[0].l.mult });
+  for (const e of entries || []) {
+    if (e.kind !== 'masuk' || !e.date) continue;
+    const m = mats.get(normCode(e.code)), it = m && invItemForMaterial(m, invItems);
+    if (!it) continue;
+    const qty = invQtyFromStock(e.qty, m, it);
+    if (!(qty > 0)) continue;
+    out.set('mat-' + e.id, { id: 'mat-' + e.id, itemId: it.id, area: 'dapur', kind: 'masuk', qty, date: e.date,
+      note: `Masuk lain ${m.code} (Stok Bahan Baku)${e.note ? ' · ' + e.note : ''}`, source: 'bahan', materialEntryId: e.id });
   }
   return out;
 }
+export const invEntriesFromStock = invEntriesFromExpenses;
 
 // ---------------- pergerakan stok ----------------
 
@@ -196,7 +213,7 @@ export function productionMenus(menus, products, invItems) {
  *   kind: 'awal' | 'beli' | 'masuk' | 'jual' | 'produksi' | 'pakai' | 'rusak' | 'opname'
  *   qty bertanda (+ masuk, − keluar); opname: qty = hasil hitung fisik (bukan selisih).
  */
-export function movements({ materials = [], menus = [], products = [], transactions = [], expenses = [], entries = [], invItems = [], invEntries = [] }) {
+export function movements({ materials = [], menus = [], products = [], transactions = [], expenses = [], entries = [] }) {
   const mats = indexByCode(materials);
   const out = new Map();
   const add = (code, mv) => {
@@ -205,9 +222,6 @@ export function movements({ materials = [], menus = [], products = [], transacti
     if (!out.has(k)) out.set(k, []);
     out.get(k).push(mv);
   };
-  const viaInv = new Set();
-  for (const m of materials) if (invItemForMaterial(m, invItems)) viaInv.add(normCode(m.code));
-
   // 1) catatan manual
   for (const e of entries) {
     if (!e.date || !ENTRY_KINDS[e.kind]) continue;
@@ -224,8 +238,7 @@ export function movements({ materials = [], menus = [], products = [], transacti
     const per = n(m.perBuy) > 0 ? n(m.perBuy) : 1;
     add(code, { date: x.date, kind: 'beli', qty: r6(n(x.qty || 1) * per), value: n(x.amount), ref: x.id, label: `Belanja ${n(x.qty || 1)} ${x.unit || m.buyUnit || ''}`.trim(), order: 1, at: n(x.createdAt) });
   }
-  // 3) pemakaian dari penjualan (menu non-produksi)
-  const prod = productionMenus(menus, products, invItems);
+  // 3) pemakaian dari penjualan sesuai resep HPP Menu
   const look = menuLookup(menus, products);
   const usage = (menu, porsi, date, kind, ref, label) => {
     const batch = n(menu.batch) > 0 ? n(menu.batch) : 1;
@@ -238,23 +251,12 @@ export function movements({ materials = [], menus = [], products = [], transacti
     if (!t.date) continue;
     for (const it of t.items || []) {
       const menu = look.forItem(it);
-      if (!menu || prod.has(menu.id)) continue;
+      if (!menu) continue;
       const q = n(it.qty);
       if (q) usage(menu, q, t.date, 'jual', t.id, `Terjual ${q} × ${menu.code} ${menu.name}`);
     }
   }
-  // 4) pemakaian dari produksi di Persediaan (menu produksi)
-  for (const [menuId, { item, mult }] of prod) {
-    const menu = menus.find(m => m.id === menuId);
-    for (const e of invEntries) {
-      if (e.itemId !== item.id || e.area !== 'dapur' || (e.kind !== 'masuk' && e.kind !== 'hasil') || !e.date) continue;
-      const porsi = n(e.qty) / mult;
-      if (porsi) usage(menu, porsi, e.date, 'produksi', e.id, `Masak ${item.name}: ${r6(porsi)} porsi (${menu.code})`);
-    }
-  }
   for (const list of out.values()) list.sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.order - b.order || a.at - b.at);
-  // bahan yang dipantau di Persediaan: hanya belanja yang dicatat (sebagai info), bukan stok
-  for (const k of viaInv) if (out.has(k)) out.set(k, out.get(k).filter(mv => mv.kind === 'beli'));
   return out;
 }
 
@@ -292,12 +294,9 @@ export function stockSummary(data, from, to) {
     }
     const upto = rows.filter(r => r.date <= to);
     s.close = upto.length ? upto[upto.length - 1].balance : 0;
-    if (s.invItem) s.close = invDapurBalance(s.invItem, data.invEntries || [], to);
     for (const k of ['buy', 'buyValue', 'use', 'useSale', 'useProd', 'adjust']) s[k] = r6(s[k]);
-    // Nilai per satuan yang dipakai: satuan item Persediaan (bila dipantau di sana) atau satuan stok bahan.
-    const perUnit = s.invItem ? (n(m.buyPrice) > 0 ? n(m.buyPrice) / invQtyFromExpense({ qty: 1 }, m, s.invItem) : 0) : unitCost(m);
-    s.unit = s.invItem ? (s.invItem.unit || m.stockUnit || '') : (m.stockUnit || '');
-    s.value = m.tracked === false ? 0 : Math.max(0, s.close) * perUnit;
+    s.unit = m.stockUnit || '';
+    s.value = m.tracked === false ? 0 : Math.max(0, s.close) * unitCost(m);
     s.status = stockStatus(m, s);
     return s;
   });
@@ -315,7 +314,6 @@ export function invDapurBalance(item, invEntries, to) {
 }
 
 export function stockStatus(m, s) {
-  if (s.invItem) return 'persediaan';
   if (m.tracked === false) return 'tidak';
   if (!s.rows.length) return 'kosong';
   if (s.close < -1e-9) return 'minus';
@@ -438,7 +436,7 @@ export function mergeImport(parsed, existing, products, makeId) {
 
 /**
  * Nilai persediaan untuk Pembukuan (persediaan akhir bulan), tanpa dobel hitung:
- *  - bahan  : nilai sisa Stok Bahan Baku pada tanggal `to` (termasuk bahan yang dipantau di Persediaan);
+ *  - bahan  : nilai sisa Stok Bahan Baku pada tanggal `to`;
  *  - produk : stok produk × HPP satuan, KECUALI produk yang bahannya dipotong per penjualan lewat resep
  *             (bahannya masih tercatat di Stok Bahan Baku sampai terjual -> akan terhitung dua kali).
  * Produk jadi dinilai pada stok saat ini (aplikasi tidak menyimpan riwayat stok produk per tanggal).
@@ -446,12 +444,11 @@ export function mergeImport(parsed, existing, products, makeId) {
 export function inventoryValue(D, to) {
   const rows = stockSummary(D, '0000-01-01', to);
   const bahan = rows.reduce((s, r) => s + (r.value || 0), 0);
-  const prodMenu = productionMenus(D.menus, D.products, D.invItems);
   const perSale = new Set();
   for (const m of D.menus || []) {
     if (!(m.items || []).length) continue;
     const p = productForMenu(m, D.products);
-    if (p && !prodMenu.has(m.id)) perSale.add(p.id); // dipotong saat produksi -> nilai produk jadi sah dihitung
+    if (p) perSale.add(p.id); // bahannya baru dipotong saat terjual -> masih tercatat di Stok Bahan Baku
   }
   let produk = 0, dikecualikan = 0;
   for (const p of D.products || []) {
@@ -501,17 +498,22 @@ export function auditBahan(D, { today, groupOf = () => 'bahan', opening = null }
   if (badCode.length) add('warn', 'Pengeluaran', `${badCode.length} belanja memakai kode bahan yang sudah tidak ada`, 'Stok bahannya tidak bertambah. Ubah kode bahan di pengeluaran tersebut.');
   const wrongGroup = X.filter(x => normCode(x.materialCode) && ['gaji', 'beban'].includes(groupOf(x)));
   if (wrongGroup.length) add('warn', 'Pengeluaran', `${wrongGroup.length} belanja ber-kode bahan tercatat sebagai beban di luar HPP`, 'Stok bahan bertambah tetapi biayanya tidak masuk HPP di Pembukuan. Ganti jenis pengeluarannya ke kelompok Bahan/Operasional.');
-  // Persediaan: catatan "Bahan masuk" manual yang kemungkinan sama dengan belanja otomatis (dobel)
-  const auto = (D.invEntries || []).filter(e => e.source === 'pengeluaran');
-  const twins = auto.filter(a => (D.invEntries || []).some(e => e.source !== 'pengeluaran' && e.itemId === a.itemId && e.area === 'dapur' && e.kind === 'masuk' && e.date === a.date && Math.abs(n(e.qty) - n(a.qty)) < 1e-9));
-  if (twins.length) add('warn', 'Persediaan', `${twins.length} "Bahan masuk" kemungkinan tercatat dua kali`, 'Belanja ber-kode bahan sudah otomatis masuk ke Persediaan; hapus catatan manual yang sama (tanggal & jumlah sama) agar stok dapur tidak dobel.');
+  // Persediaan: catatan "Bahan masuk" manual (data lama) yang kemungkinan sama dengan catatan otomatis (dobel)
+  const auto = (D.invEntries || []).filter(e => AUTO_INV_SOURCES.has(e.source));
+  const twins = auto.filter(a => (D.invEntries || []).some(e => !AUTO_INV_SOURCES.has(e.source) && e.itemId === a.itemId && e.area === 'dapur' && e.kind === 'masuk' && e.date === a.date && Math.abs(n(e.qty) - n(a.qty)) < 1e-9));
+  if (twins.length) add('warn', 'Persediaan', `${twins.length} "Bahan masuk" kemungkinan tercatat dua kali`, 'Item terhubung kode bahan sudah otomatis menerima belanja & masuk lain; hapus catatan manual yang sama (tanggal & jumlah sama) agar stok dapur tidak dobel.');
+  // item Persediaan menunjuk kode bahan yang tidak ada / satu bahan dihubungkan ke beberapa item
+  const badLink = (D.invItems || []).filter(it => normCode(it.materialCode) && !mats.has(normCode(it.materialCode)));
+  if (badLink.length) add('warn', 'Persediaan', `${badLink.length} item Persediaan memakai kode bahan yang tidak ada`, 'Bahan masuk otomatis tidak tercatat: ' + badLink.slice(0, 5).map(i => i.name).join(', ') + '. Pilih ulang kode bahan di Kelola item.');
+  const usedBy = new Map();
+  for (const it of D.invItems || []) { const k = normCode(it.materialCode); if (k) usedBy.set(k, [...(usedBy.get(k) || []), it.name]); }
+  const multi = [...usedBy].filter(([, v]) => v.length > 1);
+  if (multi.length) add('warn', 'Persediaan', `${multi.length} kode bahan dihubungkan ke lebih dari satu item`, 'Hanya item pertama yang menerima bahan masuk: ' + multi.slice(0, 3).map(([k, v]) => `${k} → ${v.join(', ')}`).join('; '));
   // stok
   if (M.length) {
     const S = stockSummary(D, '0000-01-01', today || '9999-12-31');
     const minus = S.filter(s => s.status === 'minus');
     if (minus.length) add('warn', 'Stok Bahan Baku', `${minus.length} bahan stoknya minus`, 'Biasanya belanja belum diberi kode bahan, stok awal belum dicatat, atau resep terlalu besar: ' + minus.slice(0, 6).map(s => s.code).join(', '));
-    const ignored = S.filter(s => s.invItem && (D.entries || []).some(e => normCode(e.code) === s.code));
-    if (ignored.length) add('info', 'Stok Bahan Baku', `${ignored.length} bahan kini dipantau di Persediaan`, 'Catatan stok lamanya di Stok Bahan Baku tidak dipakai lagi; catat opname bahan ini di Kontrol Persediaan: ' + ignored.slice(0, 5).map(s => s.code).join(', '));
     // Neraca Awal: persediaan (Rp) vs nilai stok awal bahan pada tanggal mulai
     if (opening && opening.date && n(opening.persediaan) > 0 && (D.entries || []).some(e => e.kind === 'awal' && e.date <= opening.date)) {
       const startVal = inventoryValue({ ...D, transactions: [], expenses: (X || []).filter(x => x.date <= opening.date) }, opening.date).bahan;

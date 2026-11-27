@@ -224,7 +224,7 @@ public class SyncCoreTest {
         ok(!kasir.cost(), "izin kasir: tanpa HPP/laba");
         ok(!kasir.canRead("tabelBaru"), "tabel tak dikenal tertutup secara bawaan");
         ok(SyncPerms.of(java.util.Arrays.asList("pembukuan")).cost(), "Pembukuan otomatis membuka HPP/laba");
-        ok(!SyncPerms.of(java.util.Arrays.asList("reports")).canRead("expenses") && SyncPerms.of(java.util.Arrays.asList("reports", "cost")).canRead("expenses"), "Laporan baru membaca pengeluaran bila boleh melihat laba");
+        ok(!SyncPerms.of(java.util.Arrays.asList("reports", "cost")).canRead("expenses") && SyncPerms.of(java.util.Arrays.asList("reports", "cost")).json().equals("[\"cost\"]"), "Laporan penjualan tidak membuka data pengeluaran; kunci lama \"reports\" diabaikan");
         ok(SyncPerms.of(java.util.Arrays.asList("expenses")).canWrite("settings") && !kasir.canWrite("settings") && kasir.canRead("settings"), "pengaturan: dibaca semua, diubah hanya oleh yang berizin");
         ok(SyncPerms.preset("penuh").cost() && SyncPerms.preset("penuh").canRead("openingBalance"), "preset penuh");
         eq(SyncPerms.parse("[\"transaction\",\"bogus\"]").json(), "[\"transaction\"]", "kunci tak dikenal dibuang");

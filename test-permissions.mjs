@@ -10,7 +10,8 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('GAGAL:', m); }
 const STORES = ['products', 'transactions', 'expenses', 'settings', 'customers', 'employees', 'salaryPayments', 'expenseTypes', 'expenseItems', 'categories', 'tables', 'orders', 'stockMovements', 'assets', 'liabilities', 'receivables', 'openingBalance', 'invItems', 'invEntries', 'cashiers', 'materials', 'hppMenus', 'materialEntries', 'tabelBaru'];
 
 const kasir = makePerms(PRESETS.kasir.keys);
-ok(kasir.canPage('transaction') && kasir.canPage('history') && !kasir.canPage('pembukuan') && !kasir.canPage('reports'), 'kasir: hanya menu kasir');
+ok(kasir.canPage('transaction') && kasir.canPage('history') && !kasir.canPage('pembukuan') && kasir.canPage('reports'), 'kasir: menu kasir + Laporan (terbuka untuk semua)');
+ok(!makePerms(['reports','cost']).canRead('expenses') && makePerms(['reports']).keys.length === 0, 'kunci lama reports diabaikan, tidak membuka pengeluaran');
 ok(kasir.canPage('dashboard') && kasir.canPage('settings'), 'beranda & Pengaturan (bagian perangkat) selalu terbuka');
 ok(!kasir.has('cost') && !kasir.has('txEdit') && !kasir.has('data'), 'kasir: tanpa HPP/laba, edit transaksi, ekspor');
 ok(makePerms(null).full && makePerms(null).canRead('openingBalance'), 'null = akses penuh (Perangkat Utama / Mandiri)');

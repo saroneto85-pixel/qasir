@@ -1,7 +1,7 @@
 // Uji kesetaraan: logika aplikasi harus menghasilkan angka yang sama dengan Dashboard Excel "Kontrol_Stok_revisi.xlsx".
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import { summarize, balanceAt, firstMinus, monthRange } from './persediaan-logic.js';
+import { summarize, balanceAt, firstMinus, monthRange, kindsFor } from './persediaan-logic.js';
 
 const fx = JSON.parse(fs.readFileSync(new URL('./test-fixtures/kontrol-stok-parity.json', import.meta.url)));
 const { from, to } = monthRange(fx.month);
@@ -59,5 +59,15 @@ console.log(`\n${ok} pemeriksaan cocok dengan Excel${fail ? `, ${fail} BERBEDA` 
   eq(posSalesForItem(tx, prods, { id: 'x', productId: 'd' }, '2026-11-25'), 9, 'data lama (productId tunggal) tetap terbaca');
   eq(posSalesForItem(tx, prods, { id: 'y', name: 'Tanpa tautan' }, '2026-11-25'), 0, 'tanpa tautan = 0');
   console.log('✓ item terhubung ke banyak produk: 6 pemeriksaan');
+}
+{
+  // 2.12: bahan masuk tidak diketik manual untuk item terhubung kode bahan / menu (lewat Olah jadi menu)
+  const k = (it, a, l) => kindsFor(it, a, l).join(',');
+  const okK = (c, m) => { if (!c) { fail++; console.log('GAGAL:', m); } };
+  okK(k({ hasDepan: true }, 'dapur', false) === 'naik,rusak,awal', 'menu: tanpa bahan masuk manual');
+  okK(k({ hasDepan: false }, 'dapur', true) === 'pakai,rusak,awal', 'bahan terhubung: tanpa bahan masuk manual');
+  okK(k({ hasDepan: false }, 'dapur', false) === 'masuk,pakai,rusak,awal', 'bahan belum terhubung: masih boleh manual');
+  okK(k({ hasDepan: true }, 'depan', false) === 'rusak,awal', 'depan tetap');
+  console.log('✓ jenis catatan manual 2.12: 4 pemeriksaan');
 }
 process.exit(fail ? 1 : 0);
