@@ -166,6 +166,15 @@ class LanSyncPlugin : Plugin() {
         state()
     }
 
+    /** Perangkat Utama: atur izin akses perangkat tambahan. keys = JSON ["transaction","history",...] */
+    @PluginMethod
+    fun setDevicePerms(call: PluginCall) = exec(call) {
+        if (SyncRepository.mode != SyncRepository.MODE_SERVER) throw IllegalStateException("Hanya Perangkat Utama yang dapat mengatur akses")
+        val deviceId = call.getString("deviceId") ?: throw IllegalArgumentException("Perangkat tidak dikenal")
+        SyncRepository.core().setPerms(deviceId, call.getString("keys") ?: "[]")
+        state()
+    }
+
     @PluginMethod
     fun revokeDevice(call: PluginCall) = exec(call) {
         SyncRepository.core().revoke(call.getString("token") ?: "")

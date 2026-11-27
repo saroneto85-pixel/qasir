@@ -57,16 +57,23 @@ class LanServer(private val port: Int) {
                 call.json {
                     val device = call.authorize()
                     val body = call.receiveText()
-                    withContext(Dispatchers.IO) { SyncRepository.core().push(device.deviceId, body) }
+                    withContext(Dispatchers.IO) {
+                        val core = SyncRepository.core()
+                        core.push(device.deviceId, body, core.permsFor(device.deviceId))
+                    }
                 }
             }
             get("/api/changes") {
                 call.json {
-                    call.authorize()
+                    val device = call.authorize()
                     val since = call.request.queryParameters["since"]?.toLongOrNull() ?: 0L
                     val wait = (call.request.queryParameters["wait"]?.toLongOrNull() ?: 0L).coerceIn(0L, 25L)
                     if (wait > 0) SyncRepository.waitForChange(since, wait * 1000)
-                    withContext(Dispatchers.IO) { SyncRepository.core().pull(since, MAX_PULL_BYTES) }
+                    withContext(Dispatchers.IO) {
+                        val core = SyncRepository.core()
+                        // Data yang tidak diizinkan owner tidak pernah dikirim ke perangkat ini.
+                        core.pull(since, MAX_PULL_BYTES, core.permsFor(device.deviceId))
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 import id.kasmini.pos.sync.MiniJson;
 import id.kasmini.pos.sync.SyncCore;
 import id.kasmini.pos.sync.SyncMerge;
+import id.kasmini.pos.sync.SyncPerms;
 
 import java.util.*;
 
@@ -27,6 +28,7 @@ public class SyncCoreTest {
         json();
         mergeRules();
         core();
+        perms();
         System.out.println("SyncCoreTest: " + pass + " lulus, " + fail + " gagal");
         if (fail > 0) System.exit(1);
     }
@@ -212,6 +214,87 @@ public class SyncCoreTest {
         try { core.auth(tokB, core.storeId()); } catch (SyncCore.HttpError e) { status = e.status; }
         eq(status, 401, "seed reset: token perangkat lama dicabut");
         eq(core.latest(), 0L, "seed reset: revisi mulai dari 0");
+    }
+
+    @SuppressWarnings("unchecked")
+    static void perms() throws Exception {
+        SyncPerms kasir = SyncPerms.preset("kasir");
+        ok(kasir.canRead("transactions") && kasir.canRead("products") && kasir.canRead("receivables"), "izin kasir: tabel inti terbaca");
+        ok(!kasir.canRead("openingBalance") && !kasir.canRead("expenses") && !kasir.canRead("assets") && !kasir.canRead("employees"), "izin kasir: neraca, pengeluaran, aset, gaji tertutup");
+        ok(!kasir.cost(), "izin kasir: tanpa HPP/laba");
+        ok(!kasir.canRead("tabelBaru"), "tabel tak dikenal tertutup secara bawaan");
+        ok(SyncPerms.of(java.util.Arrays.asList("pembukuan")).cost(), "Pembukuan otomatis membuka HPP/laba");
+        ok(!SyncPerms.of(java.util.Arrays.asList("reports")).canRead("expenses") && SyncPerms.of(java.util.Arrays.asList("reports", "cost")).canRead("expenses"), "Laporan baru membaca pengeluaran bila boleh melihat laba");
+        ok(SyncPerms.of(java.util.Arrays.asList("expenses")).canWrite("settings") && !kasir.canWrite("settings") && kasir.canRead("settings"), "pengaturan: dibaca semua, diubah hanya oleh yang berizin");
+        ok(SyncPerms.preset("penuh").cost() && SyncPerms.preset("penuh").canRead("openingBalance"), "preset penuh");
+        eq(SyncPerms.parse("[\"transaction\",\"bogus\"]").json(), "[\"transaction\"]", "kunci tak dikenal dibuang");
+
+        MemorySyncStore st = new MemorySyncStore();
+        SyncCore core = new SyncCore(st);
+        core.seed("{\"records\":[{\"s\":\"products\",\"id\":\"p1\",\"p\":{\"id\":\"p1\",\"name\":\"Rendang\",\"price\":50000,\"costPrice\":35000,\"stock\":10}},"
+            + "{\"s\":\"openingBalance\",\"id\":\"main\",\"p\":{\"id\":\"main\",\"kas\":5000000}},"
+            + "{\"s\":\"expenses\",\"id\":\"e1\",\"p\":{\"id\":\"e1\",\"amount\":420000}},"
+            + "{\"s\":\"settings\",\"id\":\"main\",\"p\":{\"id\":\"main\",\"name\":\"DBL\"}}]}", true);
+        Map<String, Object> pr = M(core.pair("{\"code\":\"" + core.pairCode() + "\",\"name\":\"Tablet\",\"deviceId\":\"devK\"}"));
+        eq(S(pr.get("perms")), "[\"customers\",\"history\",\"transaction\"]", "perangkat baru: izin bawaan Kasir");
+        SyncPerms pk = core.permsFor("devK");
+        Map<String, Object> pull = M(core.pull(0, 10_000_000, pk));
+        List<Object> ch = (List<Object>) pull.get("changes");
+        Set<String> stores = new HashSet<>();
+        for (Object o : ch) stores.add((String) ((Map<String, Object>) o).get("s"));
+        eq(new TreeSet<>(stores).toString(), "[products, settings]", "pull kasir: neraca awal & pengeluaran tidak dikirim");
+        eq(pull.get("cursor"), core.latest(), "pull kasir: kursor tetap sampai revisi terakhir");
+        Map<String, Object> prod = null;
+        for (Object o : ch) if ("products".equals(((Map<String, Object>) o).get("s"))) prod = (Map<String, Object>) ((Map<String, Object>) o).get("p");
+        ok(prod != null && !prod.containsKey("costPrice") && Long.valueOf(50000).equals(prod.get("price")), "pull kasir: harga modal dihapus, harga jual tetap");
+        ok(S(pull.get("perms")).contains("transaction"), "pull membawa daftar izin");
+        ok(!M(core.pull(0, 10_000_000)).containsKey("perms"), "pull Perangkat Utama: tanpa daftar izin (akses penuh)");
+
+        long pRev = ((Number) rec(core, "products", "p1").get("r")).longValue();
+        // edit produk dari tablet tanpa harga modal (form mengirim 0) -> harga modal owner tetap
+        Map<String, Object> r1 = M(core.push("devK", "{\"changes\":[{\"s\":\"products\",\"id\":\"p1\",\"op\":\"put\",\"b\":" + pRev + ",\"p\":{\"id\":\"p1\",\"name\":\"Rendang Padang\",\"price\":50000,\"costPrice\":0,\"stock\":10}}]}", pk));
+        Map<String, Object> sp = (Map<String, Object>) rec(core, "products", "p1").get("p");
+        eq(S(new Object[]{sp.get("name"), sp.get("costPrice")}.length == 2 ? java.util.Arrays.asList(sp.get("name"), sp.get("costPrice")) : null), "[\"Rendang Padang\",35000]", "edit dari tablet: nama berubah, harga modal owner tetap 35.000");
+        Map<String, Object> x1 = (Map<String, Object>) ((List<Object>) r1.get("results")).get(0);
+        ok(!S(x1).contains("35000"), "balasan push ke tablet tidak memuat harga modal");
+        // penjualan dari tablet: harga modal baris transaksi diisi server
+        core.push("devK", "{\"changes\":[{\"s\":\"transactions\",\"id\":\"t1\",\"op\":\"put\",\"p\":{\"id\":\"t1\",\"items\":[{\"productId\":\"p1\",\"qty\":2,\"price\":50000,\"costPrice\":0}],\"total\":100000}}]}", pk);
+        Map<String, Object> tx = (Map<String, Object>) rec(core, "transactions", "t1").get("p");
+        eq(((Map<String, Object>) ((List<Object>) tx.get("items")).get(0)).get("costPrice"), 35000L, "penjualan dari tablet: HPP standar baris diisi 35.000 dari produk");
+        // ubah transaksi (qty) dari tablet: tidak menggandakan baris
+        long tRev = ((Number) rec(core, "transactions", "t1").get("r")).longValue();
+        core.push("devK", "{\"changes\":[{\"s\":\"transactions\",\"id\":\"t1\",\"op\":\"put\",\"b\":" + tRev + ",\"bp\":{\"id\":\"t1\",\"items\":[{\"productId\":\"p1\",\"qty\":2,\"price\":50000}],\"total\":100000},\"p\":{\"id\":\"t1\",\"items\":[{\"productId\":\"p1\",\"qty\":2,\"price\":50000,\"costPrice\":0}],\"total\":100000,\"note\":\"meja 3\"}}]}", pk);
+        Map<String, Object> tx2 = (Map<String, Object>) rec(core, "transactions", "t1").get("p");
+        eq(((List<Object>) tx2.get("items")).size(), 1, "ubah transaksi dari tablet: baris tidak dobel");
+        eq(tx2.get("note"), "meja 3", "ubah transaksi dari tablet: catatan tersimpan");
+        // tulis ke tabel tanpa izin -> ditolak, balasan = versi server
+        long before = core.latest();
+        Map<String, Object> r2 = M(core.push("devK", "{\"changes\":[{\"s\":\"openingBalance\",\"id\":\"main\",\"op\":\"put\",\"p\":{\"id\":\"main\",\"kas\":1}},{\"s\":\"expenses\",\"id\":\"eX\",\"op\":\"put\",\"p\":{\"id\":\"eX\",\"amount\":1}},{\"s\":\"settings\",\"id\":\"main\",\"op\":\"del\"}]}", pk));
+        eq(core.latest(), before, "tulis tanpa izin: tidak ada yang berubah");
+        List<Object> rr = (List<Object>) r2.get("results");
+        eq(((Map<String, Object>) rr.get(1)).get("d"), true, "data baru di tabel tanpa izin: perangkat diminta menghapus");
+        eq(((Map<String, Object>) rec(core, "openingBalance", "main").get("p")).get("kas"), 5000000L, "neraca awal owner tidak berubah");
+        ok(!S(r2).contains("5000000"), "penolakan tidak membocorkan isi neraca awal ke perangkat");
+        eq(((Map<String, Object>) rr.get(0)).get("d"), true, "tulis neraca awal tanpa izin: perangkat diminta menghapus salinannya");
+        // hash PIN owner tidak dikirim & tidak bisa ditimpa perangkat tanpa izin Pengaturan
+        long sRev = ((Number) rec(core, "settings", "main").get("r")).longValue();
+        core.push(null, "{\"changes\":[{\"s\":\"settings\",\"id\":\"main\",\"op\":\"put\",\"b\":" + sRev + ",\"p\":{\"id\":\"main\",\"name\":\"DBL\",\"pinHash\":\"OWNERHASH\",\"pinSalt\":\"S\"}}]}", null);
+        ok(!core.pull(0, 10_000_000, pk).contains("OWNERHASH") && core.pull(0, 10_000_000).contains("OWNERHASH"), "hash PIN owner tidak dikirim ke HP kasir (tetap ada di induk)");
+        SyncPerms pe = SyncPerms.of(java.util.Arrays.asList("transaction", "expenses"));
+        sRev = ((Number) rec(core, "settings", "main").get("r")).longValue();
+        core.push("devK", "{\"changes\":[{\"s\":\"settings\",\"id\":\"main\",\"op\":\"put\",\"b\":" + sRev + ",\"p\":{\"id\":\"main\",\"name\":\"DBL\",\"expenseTypes\":[\"Gas\"],\"pinHash\":\"STAFFHASH\",\"pinSalt\":\"X\"}}]}", pe);
+        Map<String, Object> sset = (Map<String, Object>) rec(core, "settings", "main").get("p");
+        eq(java.util.Arrays.asList(sset.get("pinHash"), S(sset.get("expenseTypes"))), java.util.Arrays.asList("OWNERHASH", "[\"Gas\"]"), "perangkat ber-izin Pengeluaran: jenis pengeluaran tersimpan, PIN owner tidak tertimpa");
+        Map<String, Object> rs = M(core.push("devK", "{\"changes\":[{\"s\":\"settings\",\"id\":\"main\",\"op\":\"put\",\"p\":{\"id\":\"main\",\"name\":\"Diganti kasir\"}}]}", pk));
+        Map<String, Object> rs0 = (Map<String, Object>) ((List<Object>) rs.get("results")).get(0);
+        ok(Boolean.FALSE.equals(rs0.get("d")) && "DBL".equals(((Map<String, Object>) rs0.get("p")).get("name")) && !S(rs0).contains("OWNERHASH"), "kasir mengubah pengaturan: ditolak, dikembalikan versi server tanpa hash PIN (tidak dihapus)");
+
+        // owner mengubah izin
+        core.setPerms("devK", "[\"transaction\",\"history\",\"expenses\"]");
+        SyncPerms pk2 = core.permsFor("devK");
+        ok(pk2.canRead("expenses") && pk2.canWrite("settings") && !pk2.cost(), "izin baru: pengeluaran terbuka, HPP tetap tertutup");
+        ok(core.devicesJson().contains("\"perms\":[\"expenses\",\"history\",\"transaction\"]"), "daftar perangkat memuat izin");
+        ok(core.permsFor("tidak-ada").json().equals(SyncPerms.preset("kasir").json()), "perangkat tanpa catatan izin: bawaan Kasir");
     }
 
     // pull hanya mengirim versi terakhir tiap record; hitung revisi yang tertimpa

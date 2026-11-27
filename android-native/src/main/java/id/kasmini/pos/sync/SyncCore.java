@@ -82,7 +82,10 @@ public final class SyncCore {
 
     /** Menerapkan perubahan dari perangkat. Mengembalikan JSON {latest, results:[...]} */
     @SuppressWarnings("unchecked")
-    public String push(final String deviceId, String body) throws Exception {
+    public String push(final String deviceId, String body) throws Exception { return push(deviceId, body, null); }
+
+    /** perms = null untuk Perangkat Utama sendiri (akses penuh). */
+    public String push(final String deviceId, String body, final SyncPerms perms) throws Exception {
         final Map<String, Object> req;
         try { req = MiniJson.parseObject(body); } catch (IllegalArgumentException e) { throw new HttpError(400, "Data kiriman rusak: " + e.getMessage()); }
         Object ch = req.get("changes");
@@ -106,6 +109,24 @@ public final class SyncCore {
                     SyncStore.Rec cur = st.get(store, id);
                     boolean eq = false;
                     SyncStore.Rec res;
+                    if (perms != null && !perms.canWrite(store)) {
+                        // Tidak diizinkan: perubahan diabaikan. Tabel yang boleh dibaca -> perangkat menerima kembali
+                        // versi server (disaring); tabel yang tidak boleh dibaca -> perangkat diminta menghapus salinannya
+                        // tanpa dikirimi isinya.
+                        appendResult(out, first, store, id, perms.canRead(store) ? cur : null, false, perms);
+                        first = false;
+                        continue;
+                    }
+                    if (perms != null && "put".equals(op) && c.get("p") instanceof Map) {
+                        if (!perms.cost()) {
+                            protectCost(store, (Map<String, Object>) c.get("p"), cur);
+                            if (c.get("bp") instanceof Map) protectCost(store, (Map<String, Object>) c.get("bp"), cur);
+                        }
+                        if (!perms.has("settings") && "settings".equals(store)) {
+                            protectPin((Map<String, Object>) c.get("p"), cur);
+                            if (c.get("bp") instanceof Map) protectPin((Map<String, Object>) c.get("bp"), cur);
+                        }
+                    }
                     if ("del".equals(op)) {
                         if (cur != null && cur.deleted) res = cur;
                         else res = write(store, id, null, true, ++r, now, deviceId);
@@ -140,15 +161,8 @@ public final class SyncCore {
                             if (res == cur) eq = clientRaw.equals(cur.payload);
                         }
                     }
-                    if (!first) out.append(',');
+                    appendResult(out, first, store, id, res, eq, perms);
                     first = false;
-                    out.append("{\"s\":").append(MiniJson.quote(store)).append(",\"id\":").append(MiniJson.quote(id))
-                       .append(",\"r\":").append(res.rev).append(",\"d\":").append(res.deleted);
-                    if (!res.deleted) {
-                        if (eq) out.append(",\"eq\":true");
-                        else out.append(",\"p\":").append(res.payload);
-                    }
-                    out.append('}');
                 }
                 return r;
             });
@@ -157,6 +171,85 @@ public final class SyncCore {
         out.append("],\"latest\":").append(rev).append('}');
         fire(rev);
         return out.toString();
+    }
+
+    private void appendResult(StringBuilder out, boolean first, String store, String id, SyncStore.Rec res, boolean eq, SyncPerms perms) {
+        if (!first) out.append(',');
+        out.append("{\"s\":").append(MiniJson.quote(store)).append(",\"id\":").append(MiniJson.quote(id));
+        if (res == null) { out.append(",\"r\":0,\"d\":true}"); return; }
+        out.append(",\"r\":").append(res.rev).append(",\"d\":").append(res.deleted);
+        if (!res.deleted) {
+            if (eq) out.append(",\"eq\":true");
+            else out.append(",\"p\":").append(redact(store, res.payload, perms));
+        }
+        out.append('}');
+    }
+
+    // ---------------- harga modal (HPP) untuk perangkat tanpa izin "cost" ----------------
+
+    static boolean costStore(String store) { return "products".equals(store) || "transactions".equals(store); }
+
+    static final String[] PIN_FIELDS = {"pinHash", "pinSalt"};
+
+    /**
+     * Menyaring data untuk perangkat terbatas: harga modal (tanpa izin "cost") dan hash PIN owner
+     * (tanpa izin "settings"; PIN 6 digit mudah ditebak dari hash-nya).
+     */
+    @SuppressWarnings("unchecked")
+    static String redact(String store, String payload, SyncPerms perms) {
+        if (perms == null || payload == null) return payload;
+        boolean cost = !perms.cost() && costStore(store), pin = !perms.has("settings") && "settings".equals(store);
+        if (!cost && !pin) return payload;
+        Map<String, Object> m = MiniJson.parseObject(payload);
+        if (cost) {
+            m.remove("costPrice");
+            if (m.get("items") instanceof List) for (Object it : (List<Object>) m.get("items")) if (it instanceof Map) ((Map<String, Object>) it).remove("costPrice");
+        }
+        if (pin) for (String f : PIN_FIELDS) m.remove(f);
+        return MiniJson.stringify(m);
+    }
+
+    /** PIN owner tidak bisa diubah/dihapus perangkat tanpa izin "settings". */
+    private static void protectPin(Map<String, Object> p, SyncStore.Rec cur) {
+        Map<String, Object> server = cur != null && !cur.deleted && cur.payload != null ? MiniJson.parseObject(cur.payload) : null;
+        for (String f : PIN_FIELDS) {
+            if (server != null && server.containsKey(f)) p.put(f, server.get(f)); else p.remove(f);
+        }
+    }
+
+    /**
+     * Perangkat tanpa izin "cost" tidak tahu harga modal: nilainya diisi dari server agar data owner
+     * tidak tertimpa (produk) dan HPP standar penjualan tetap benar (transaksi).
+     */
+    @SuppressWarnings("unchecked")
+    private void protectCost(String store, Map<String, Object> p, SyncStore.Rec cur) {
+        if (!costStore(store)) return;
+        Map<String, Object> server = cur != null && !cur.deleted && cur.payload != null ? MiniJson.parseObject(cur.payload) : null;
+        if ("products".equals(store)) {
+            if (server != null && server.containsKey("costPrice")) p.put("costPrice", server.get("costPrice"));
+            return;
+        }
+        if (!(p.get("items") instanceof List)) return;
+        Map<String, Object> known = new HashMap<>();
+        if (server != null && server.get("items") instanceof List)
+            for (Object o : (List<Object>) server.get("items"))
+                if (o instanceof Map && ((Map<String, Object>) o).get("productId") != null && ((Map<String, Object>) o).containsKey("costPrice"))
+                    known.put(String.valueOf(((Map<String, Object>) o).get("productId")), ((Map<String, Object>) o).get("costPrice"));
+        for (Object o : (List<Object>) p.get("items")) {
+            if (!(o instanceof Map)) continue;
+            Map<String, Object> it = (Map<String, Object>) o;
+            Object pid = it.get("productId");
+            if (pid == null) continue;
+            String k = String.valueOf(pid);
+            if (!known.containsKey(k)) {
+                SyncStore.Rec pr = st.get("products", k);
+                Object c = null;
+                if (pr != null && !pr.deleted && pr.payload != null) c = MiniJson.parseObject(pr.payload).get("costPrice");
+                known.put(k, c);
+            }
+            Object c = known.get(k);
+            if (c != null) it.put("costPrice", c); else it.remove("costPrice");
+        }
     }
 
     private SyncStore.Rec write(String store, String id, String payload, boolean deleted, long rev, long now, String deviceId) {
@@ -173,9 +266,14 @@ public final class SyncCore {
     // ---------------- pull ----------------
 
     /** Perubahan dengan rev > since, maksimal kira-kira maxBytes. */
-    public String pull(long since, int maxBytes) {
+    public String pull(long since, int maxBytes) { return pull(since, maxBytes, null); }
+
+    /** perms = null untuk akses penuh. Data yang tidak diizinkan dilewati (kursor tetap maju). */
+    public String pull(long since, int maxBytes, SyncPerms perms) {
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"storeId\":").append(MiniJson.quote(storeId())).append(",\"changes\":[");
+        sb.append("{\"storeId\":").append(MiniJson.quote(storeId()));
+        if (perms != null) sb.append(",\"perms\":").append(perms.json());
+        sb.append(",\"changes\":[");
         long cursor = since, latest = lastRev;
         boolean more = false, first = true;
         int bytes = 0;
@@ -184,12 +282,13 @@ public final class SyncCore {
             List<SyncStore.Rec> rows = st.since(cursor, 100);
             if (rows.isEmpty()) break;
             for (SyncStore.Rec r : rows) {
+                if (perms != null && !perms.canRead(r.store)) { cursor = r.rev; continue; }
                 if (!first && bytes + (r.payload == null ? 0 : r.payload.length()) > maxBytes) { more = true; break outer; }
                 if (!first) sb.append(',');
                 first = false;
                 sb.append("{\"s\":").append(MiniJson.quote(r.store)).append(",\"id\":").append(MiniJson.quote(r.id))
                   .append(",\"r\":").append(r.rev).append(",\"d\":").append(r.deleted);
-                if (!r.deleted) sb.append(",\"p\":").append(r.payload);
+                if (!r.deleted) sb.append(",\"p\":").append(redact(r.store, r.payload, perms));
                 sb.append('}');
                 bytes += 64 + (r.payload == null ? 0 : r.payload.length());
                 cursor = r.rev;
@@ -269,6 +368,7 @@ public final class SyncCore {
                 d.code = "K" + n;
                 st.setMeta("nextCode", String.valueOf(n + 1));
             }
+            if (st.meta("perms:" + deviceId) == null) st.setMeta("perms:" + deviceId, SyncPerms.preset(SyncPerms.DEFAULT_PRESET).json());
             d.token = randomHex(24);
             d.name = name == null || name.trim().isEmpty() ? "Perangkat " + d.code : name.trim();
             if (d.name.length() > 40) d.name = d.name.substring(0, 40);
@@ -277,7 +377,8 @@ public final class SyncCore {
             st.putDevice(d);
             seen.put(d.token, now);
             return "{\"token\":" + MiniJson.quote(d.token) + ",\"storeId\":" + MiniJson.quote(storeId())
-                    + ",\"storeName\":" + MiniJson.quote(storeName()) + ",\"deviceCode\":" + MiniJson.quote(d.code) + "}";
+                    + ",\"storeName\":" + MiniJson.quote(storeName()) + ",\"deviceCode\":" + MiniJson.quote(d.code)
+                    + ",\"perms\":" + permsFor(deviceId).json() + "}";
         }
     }
 
@@ -303,7 +404,8 @@ public final class SyncCore {
             if (!first) sb.append(',');
             first = false;
             sb.append("{\"token\":").append(MiniJson.quote(d.token)).append(",\"name\":").append(MiniJson.quote(d.name))
-              .append(",\"code\":").append(MiniJson.quote(d.code)).append(",\"lastSeen\":").append(last)
+              .append(",\"code\":").append(MiniJson.quote(d.code)).append(",\"deviceId\":").append(MiniJson.quote(d.deviceId))
+              .append(",\"perms\":").append(permsFor(d.deviceId).json()).append(",\"lastSeen\":").append(last)
               .append(",\"online\":").append(now - last < 45_000).append('}');
         }
         return sb.append(']').toString();
@@ -315,6 +417,20 @@ public final class SyncCore {
             if (d != null) { d.revoked = true; st.putDevice(d); }
             seen.remove(token);
         }
+    }
+
+    // ---------------- izin per perangkat ----------------
+
+    public SyncPerms permsFor(String deviceId) {
+        return SyncPerms.parse(st.meta("perms:" + deviceId));
+    }
+
+    /** keysJson: ["transaction","history",...]; mengembalikan izin yang tersimpan (setelah dinormalkan). */
+    public SyncPerms setPerms(String deviceId, String keysJson) {
+        SyncPerms p = SyncPerms.parse(keysJson);
+        st.setMeta("perms:" + deviceId, p.json());
+        fire(lastRev); // bangunkan long-poll agar perangkat segera menerima izin baru
+        return p;
     }
 
     public int pruneHistory() { return st.pruneHistory(System.currentTimeMillis() - HISTORY_MS); }

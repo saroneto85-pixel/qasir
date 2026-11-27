@@ -37,10 +37,11 @@ public class SyncTestServer {
                     case "/api/pair": out = core.pair(body); break;
                     case "/api/push": {
                         SyncTestServerAuth a = auth(core, ex);
-                        out = core.push(a.deviceId, body);
+                        out = core.push(a.deviceId, body, core.permsFor(a.deviceId));
                         break;
                     }
-                    case "/api/changes": auth(core, ex); waitFor(core, since, wait); out = core.pull(since, 1_500_000); break;
+                    case "/api/changes": { SyncTestServerAuth a = auth(core, ex); waitFor(core, since, wait); out = core.pull(since, 1_500_000, core.permsFor(a.deviceId)); break; }
+                    case "/local/perms": core.setPerms(q.get("deviceId"), q.get("keys")); out = "{}"; break;
                     case "/local/seed": out = "{\"latest\":" + core.seed(body, "1".equals(q.get("reset"))) + "}"; if (q.containsKey("name")) core.setStoreName(q.get("name")); break;
                     case "/local/push": out = core.push("server-device", body); break;
                     case "/local/pull": waitFor(core, since, wait); out = core.pull(since, 1_500_000); break;
