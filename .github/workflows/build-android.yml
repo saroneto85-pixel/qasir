@@ -32,10 +32,9 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
+          # Satu baris, dipisah spasi: action terbaru tidak memecah daftar per baris.
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
 
       - name: Install npm dependencies
         run: npm install --no-audit --no-fund --package-lock=false
