@@ -1,5 +1,7 @@
 import { initDatabase, all, put, del, isNative } from './db.js';
 import './sync-ui.js'; // dimuat lebih dulu: memasang gerbang sinkronisasi sebelum ada penulisan
+import { APP_VERSION } from './version.js';
+for(const id of ['appVersion','appVersionSettings']){const el=document.getElementById(id);if(el)el.textContent='KASIR v'+APP_VERSION}
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { App } from '@capacitor/app';

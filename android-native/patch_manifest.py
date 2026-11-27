@@ -40,3 +40,6 @@ if (_src / 'sync').is_dir():
 _lan = _here / 'patch_lan_sync.py'
 if _lan.exists():
     runpy.run_path(str(_lan), run_name='__main__')
+_ver = _here / 'patch_version.py'
+if _ver.exists():
+    runpy.run_path(str(_ver), run_name='__main__')
