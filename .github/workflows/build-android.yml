@@ -43,7 +43,7 @@ jobs:
         run: npm run build
 
       - name: Check JavaScript syntax
-        run: for f in app.js db.js persediaan.js persediaan-logic.js pembukuan.js pembukuan-logic.js xlsx.js receipt.js receipt-ui.js audit.js audit-ui.js resto-logic.js sync.js sync-engine.js sync-ui.js; do node --check $f; done && node test-receipt.mjs && node test-audit.mjs && node test-resto-logic.mjs && node test-persediaan-logic.mjs && node test-pembukuan-logic.mjs
+        run: for f in app.js db.js persediaan.js persediaan-logic.js pembukuan.js pembukuan-logic.js xlsx.js receipt.js receipt-ui.js audit.js audit-ui.js resto-logic.js sync.js sync-engine.js sync-ui.js bahan.js bahan-logic.js xlsx-read.js version.js; do node --check $f; done && node test-receipt.mjs && node test-audit.mjs && node test-resto-logic.mjs && node test-persediaan-logic.mjs && node test-pembukuan-logic.mjs && node test-bahan-logic.mjs && node test-version.mjs
 
       - name: Test sinkronisasi antar perangkat (inti Java + uji multi-perangkat)
         run: sh android-native/test/run-tests.sh && node test-sync-e2e.mjs
