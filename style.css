@@ -352,3 +352,26 @@ main{max-width:860px;margin-left:auto;margin-right:auto}
 .sync-manual{margin:8px 0 12px}.sync-manual summary{cursor:pointer;font-size:13px;color:#71806f}
 @media (max-width:700px){.sync-choice{grid-template-columns:1fr}.sync-code{font-size:26px}}
 .sync-dev .debt-tag{display:inline-block}
+
+/* ---- Stok Bahan Baku & HPP Menu (v2.9.0) ---- */
+.bahan-panel{padding:14px}.bahan-panel td small,.bahan-card small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.bahan-panel .num{text-align:right;white-space:nowrap}.bahan-panel .act{white-space:nowrap;text-align:right}
+.bahan-cards{display:none}
+.st-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;background:#eef1ee;color:#53614f}
+.st-badge.ok{background:#e3f4e8;color:#17634f}.st-badge.warn{background:#fff3d6;color:#8a6100}.st-badge.bad{background:#fde8e7;color:#b42318}.st-badge.info{background:#e6efff;color:#2850a8}.st-badge.mute{background:#f1f3f1;color:#71806f}
+.warn-text{color:#b54708 !important}
+.bahan-note{background:#f6faf6;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px}.bahan-note summary{cursor:pointer;font-weight:600}
+.bahan-empty-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.bahan-card{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff}
+.bc-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.bc-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}.bc-nums span{font-size:11px;color:var(--muted)}.bc-nums b{display:block;font-size:14px;color:var(--text)}
+.bc-actions{display:flex;gap:8px;flex-wrap:wrap}.bc-actions button{flex:1}
+.bahan-filters{flex-wrap:wrap}
+.hm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px}
+.hm-h{font-size:15px;margin:14px 0 6px}
+.hm-table input{width:100%;min-width:70px}.hm-table td{vertical-align:top}.hm-table .num{text-align:right;white-space:nowrap;padding-top:14px}
+.hm-summary{background:#f6faf6;border-radius:10px;padding:10px 12px;margin:12px 0}
+.e-material{border:1px dashed #9cc8ad;border-radius:10px;padding:8px 10px;margin:6px 0 10px;background:#f7fcf8}.e-material small{display:block;margin:-4px 0 6px}
+.mm-chk{align-self:end;font-size:13px}.bi-list{padding-left:18px}.bi-list li{margin:4px 0}
+@media(max-width:700px){.bahan-cards{display:block}.hm-grid{grid-template-columns:1fr 1fr}.hm-table th:nth-child(2),.hm-table td:nth-child(2){display:none}}
+.e-material label.chk{display:flex;flex-direction:row;align-items:center;gap:8px;margin-top:6px}.e-material label.chk input{flex:none;width:20px;height:20px}
