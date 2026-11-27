@@ -4,6 +4,7 @@
 export const RC_DEFAULTS = {
   paper: 80,            // lebar kertas (mm): 58 atau 80
   showLogo: true, logoSize: 'sedang', logoAlign: 'center',
+  logoSource: 'toko',   // 'toko' = Logo 1 (logo toko, sama dengan header) · 'struk' = Logo 2 (settings.receiptLogo)
   tagline: '',          // teks di bawah nama toko (slogan)
   showAddress: true, showPhone: true,
   showInvoice: true, showDateTime: true, showCashier: true, showCustomer: true, showType: true, showPayment: true,
@@ -25,7 +26,12 @@ export function normReceipt(settings = {}) {
   if (!LOGO_SIZES[r.logoSize]) r.logoSize = 'sedang';
   if (!QR_SIZES[r.qrSize]) r.qrSize = 'sedang';
   if (!['left', 'center', 'right'].includes(r.logoAlign)) r.logoAlign = 'center';
+  if (!['toko', 'struk'].includes(r.logoSource)) r.logoSource = 'toko';
   return r;
+}
+/** Gambar logo yang dicetak di struk: Logo 2 (khusus struk) bila dipilih, selain itu Logo 1 (logo toko). */
+export function receiptLogoOf(settings = {}) {
+  return normReceipt(settings).logoSource === 'struk' ? settings.receiptLogo || '' : settings.logo || '';
 }
 export const paperGeom = cfg => (cfg.paper === 58 ? { paper: 58, content: 48, cols: 32, dots: 384 } : { paper: 80, content: 72, cols: 48, dots: 576 });
 

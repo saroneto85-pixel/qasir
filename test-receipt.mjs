@@ -1,7 +1,7 @@
 // Uji model struk, tata letak proporsional, ESC/POS (lebar kolom) dan PDF (dengan jsPDF tiruan).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { normReceipt, receiptModel, fitImage, wrapCols, lrRows, ascii, paperGeom, fillPlaceholders, whenText, rupiah, receiptPDF, receiptHTML, receiptEscPos, RC_DEFAULTS } from './receipt.js';
+import { normReceipt, receiptModel, fitImage, wrapCols, lrRows, ascii, paperGeom, fillPlaceholders, whenText, rupiah, receiptPDF, receiptHTML, receiptEscPos, RC_DEFAULTS, receiptLogoOf } from './receipt.js';
 
 let ok = 0; const t = (c, m) => { assert.ok(c, m); ok++; };
 const tx = { invoice: 'INV-77918881', date: '2026-11-25', time: '10.38.38', cashier: 'Pemilik', customer: '', type: 'Dine In', payment: 'Tunai', note: '',
@@ -66,4 +66,11 @@ const mA = await (await import('./receipt.js')).attachAspects(receiptModel(tx, s
 const ih = receiptHTML(mA); t(/width:32\.40mm;height:32\.40mm/.test(ih), 'HTML: logo persegi 32,4 x 32,4 mm persis');
 t(receiptHTML(m).includes('Dapur Bumbu Lengkep') && receiptHTML(m).includes('Telp 0812-3456'), 'HTML pratinjau');
 fs.writeFileSync('/tmp/pdf-ops.json', JSON.stringify(ops));
+// Logo 1 (toko) vs Logo 2 (struk)
+t(receiptLogoOf({ logo: 'L1' }) === 'L1', 'data lama: struk memakai logo toko (Logo 1)');
+t(receiptLogoOf({ logo: 'L1', receiptLogo: 'L2', receipt: { logoSource: 'toko' } }) === 'L1', 'sumber toko: Logo 1');
+t(receiptLogoOf({ logo: 'L1', receiptLogo: 'L2', receipt: { logoSource: 'struk' } }) === 'L2', 'sumber struk: Logo 2');
+t(receiptLogoOf({ logo: 'L1', receipt: { logoSource: 'struk' } }) === '', 'Logo 2 kosong: struk tanpa logo, tidak memakai logo toko diam-diam');
+t(normReceipt({ receipt: { logoSource: 'x' } }).logoSource === 'toko', 'nilai sumber logo tidak dikenal -> toko');
+t(receiptModel({ invoice: 'A', items: [], date: '2026-11-27' }, { name: 'T', logo: receiptLogoOf({ logo: 'L1', receiptLogo: 'L2', receipt: { logoSource: 'struk' } }) }, normReceipt({ receipt: { logoSource: 'struk' } })).logo.src === 'L2', 'model struk memakai Logo 2');
 console.log(`✓ ${ok} pemeriksaan struk lulus`);
