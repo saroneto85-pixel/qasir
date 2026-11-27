@@ -375,3 +375,51 @@ main{max-width:860px;margin-left:auto;margin-right:auto}
 .mm-chk{align-self:end;font-size:13px}.bi-list{padding-left:18px}.bi-list li{margin:4px 0}
 @media(max-width:700px){.bahan-cards{display:block}.hm-grid{grid-template-columns:1fr 1fr}.hm-table th:nth-child(2),.hm-table td:nth-child(2){display:none}}
 .e-material label.chk{display:flex;flex-direction:row;align-items:center;gap:8px;margin-top:6px}.e-material label.chk input{flex:none;width:20px;height:20px}
+
+/* ---- 2.10.0: perapian tampilan ---- */
+/* Beranda sudah punya kotak "Transaksi Baru" di Menu Utama: tombol melayang tidak menutupi menu */
+body[data-page="dashboard"] .bottom-transaction{display:none!important}
+/* Kartu stok bahan: 4 kolom ringkas */
+.mc-table td small{display:block}
+.mc-table .mc-in{color:#17634f;font-weight:600}.mc-table .mc-out{color:#b42318;font-weight:600}
+.mc-table .mc-del{display:inline-block;margin-top:4px;font-size:12px;padding:0}
+.mc-table th,.mc-table td{white-space:normal}
+.mc-table td:first-child{white-space:nowrap}
+/* Pencarian penuh di HP */
+#hpp .exp-filters,#bahan .exp-filters{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+#hpp .exp-filters label{grid-column:1/-1}
+.pt-cat{display:none}
+@media (max-width:640px){
+  /* Resep: baris bertumpuk (bahan di atas; qty, qty/porsi, biaya di bawah) */
+  .hm-table thead{display:none}
+  .hm-table tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;padding:10px 0;border-bottom:1px solid var(--line,#e2e9e2)}
+  .hm-table td{padding:0;border:0;display:block}
+  .hm-table td:nth-child(1){grid-column:1/3;grid-row:1}
+  .hm-table td:nth-child(6){grid-column:3;grid-row:1;text-align:right}
+  .hm-table td:nth-child(3){grid-column:1;grid-row:2}
+  .hm-table td:nth-child(4){grid-column:2;grid-row:2}
+  .hm-table td:nth-child(5){grid-column:3;grid-row:2}
+  .hm-table .num{padding-top:0;text-align:left;white-space:normal}
+  .hm-table td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted,#71806f)}
+  .hm-table select,.hm-table input{min-width:0;width:100%}
+  /* Kelola Produk: kartu berlabel */
+  .product-table thead{display:none}
+  .product-table tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;padding:12px 4px;border-bottom:1px solid var(--line,#e2e9e2)}
+  .product-table td{padding:0;border:0;display:block}
+  .product-table td:first-child{grid-column:1/-1}
+  .product-table .pt-col-cat{display:none}
+  .product-table .pt-cat{display:inline}
+  .product-table td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted,#71806f)}
+  .product-table .pt-act{grid-column:1/-1;display:flex;gap:18px}
+}
+
+/* ---- 2.11.0: izin perangkat tambahan ---- */
+[hidden]{display:none!important}
+body.no-cost .product-table td[data-l="HPP"],body.no-cost .product-table th:nth-child(3){display:none}
+body.no-cost .perm-cost,body.no-txEdit .perm-txEdit,body.no-data .perm-data,body.no-salary .perm-salary{display:none!important}
+.perm-note{background:#fff6dd;border:1px solid #f0d58a;border-radius:12px;padding:10px 12px;font-size:13px;margin:0 0 12px}
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 14px;margin:6px 0 12px}
+.perm-grid{gap:4px 14px}.perm-grid label.chk{display:flex!important;flex-direction:row!important;align-items:center;gap:10px;margin:0!important;padding:9px 10px;border:1px solid var(--line,#e2e8e0);border-radius:10px;font-weight:500;font-size:14px;line-height:1.3;cursor:pointer;color:inherit}.perm-grid label.chk input{width:20px!important;height:20px!important;min-height:0!important;flex:0 0 20px;margin:0!important;padding:0!important;accent-color:var(--primary,#1f6b4f)}.perm-grid label.chk:has(input:checked){background:#eef6f0;border-color:#9fcbb0}
+.perm-presets{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.perm-presets button{flex:1 1 auto}
+.sync-dev .perm-sum{display:block;color:var(--muted,#71806f);font-size:12px;margin-top:2px}

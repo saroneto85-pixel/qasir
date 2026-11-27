@@ -21,7 +21,7 @@ const STORES = ['products', 'transactions', 'expenses', 'settings', 'customers',
 // ---------- server uji Java ----------
 const out = mkdtempSync(join(tmpdir(), 'kasir-sync-'));
 const N = 'android-native/src/main/java/id/kasmini/pos/sync/';
-execFileSync('javac', ['-d', out, N + 'MiniJson.java', N + 'SyncMerge.java', N + 'SyncStore.java', N + 'SyncCore.java',
+execFileSync('javac', ['-d', out, N + 'MiniJson.java', N + 'SyncMerge.java', N + 'SyncStore.java', N + 'SyncPerms.java', N + 'SyncCore.java',
   'android-native/test/MemorySyncStore.java', 'android-native/test/SyncTestServer.java'], { stdio: ['ignore', 'ignore', 'inherit'] });
 const java = spawn('java', ['-cp', out, 'SyncTestServer'], { stdio: ['ignore', 'pipe', 'inherit'] });
 const port = await new Promise((res, rej) => {
@@ -193,6 +193,9 @@ try {
   await C.engine.start();
   await C.engine.join({ code, name: 'HP Dapur' });
   eq(C.plugin.st.deviceCode, 'K3', 'C mendapat kode perangkat K3');
+  // B & C dipakai owner/staf kepercayaan: akses penuh (perangkat baru bawaannya hanya akses Kasir)
+  for (const id of ['devB', 'devC']) await http('GET', `/local/perms?deviceId=${id}&keys=${encodeURIComponent(JSON.stringify(['transaction','history','customers','products','inventory','bahan','hpp','expenses','reports','neraca','pembukuan','evaluasi','assets','debts','settings','cost','txEdit','salary','data']))}`);
+  await sleep(300);
   await settle([A, B, C]);
   await sameEverywhere([A, B, C], 'setelah bergabung');
 
@@ -303,6 +306,63 @@ try {
   for (let i = 0; i < 600; i++) await B.put('transactions', { id: 'bulk' + i, total: i, note: 'x'.repeat(200) });
   await settle([A, B, C], 30000);
   eq((await C.all('transactions')).filter(t => t.id.startsWith('bulk')).length, 600, '600 transaksi sampai di C');
+
+  // 11b) HP kasir dengan akses terbatas (izin bawaan Kasir)
+  await A.put('openingBalance', { id: 'main', kas: 5000000, persediaan: 2000000 });
+  await A.put('expenses', { id: 'gaji-ani', type: 'Gaji', amount: 2500000, date: '2026-11-25' });
+  await A.put('employees', { id: 'emp1', name: 'Ani', salary: 2500000 });
+  await A.put('products', { ...(await A.get('products', 'p1')), costPrice: 35000 });
+  const K = device('K', clientPlugin('devK'));
+  await K.engine.start();
+  await K.engine.join({ code: (await local('/local/state')).pairCode, name: 'HP Kasir' });
+  await settle([A, B, C, K], 15000);
+  eq(K.engine.state().perms, ['customers', 'history', 'transaction'], 'HP kasir menerima izin bawaan Kasir');
+  eq([await K.get('openingBalance', 'main'), await K.get('expenses', 'gaji-ani'), await K.get('employees', 'emp1')].map(Boolean), [false, false, false], 'HP kasir tidak menerima neraca awal, pengeluaran, gaji');
+  const kp = await K.get('products', 'p1');
+  ok(kp && kp.name && !('costPrice' in kp), 'HP kasir menerima produk tanpa harga modal');
+  ok((await K.all('transactions')).length > 600, 'HP kasir tetap menerima transaksi (riwayat)');
+  // jual dari HP kasir: HPP standar tetap benar di induk
+  await K.sell('p1', 1);
+  await settle([A, B, C, K], 15000);
+  const kt = (await A.all('transactions')).filter(t => t.by === 'K');
+  eq(kt.map(t => t.items[0].costPrice ?? null), [35000], 'penjualan dari HP kasir: harga modal baris diisi induk (35.000)');
+  eq((await A.get('products', 'p1')).costPrice, 35000, 'harga modal produk owner tidak tertimpa');
+  // HP kasir mencoba menulis data yang tidak diizinkan -> ditolak & dibatalkan di HP itu
+  await K.put('expenses', { id: 'nakal', amount: 1, date: '2026-11-26' });
+  await K.put('openingBalance', { id: 'main', kas: 1 });
+  await settle([A, B, C, K], 15000);
+  eq([!!(await A.get('expenses', 'nakal')), (await A.get('openingBalance', 'main')).kas, !!(await K.get('expenses', 'nakal')), !!(await K.get('openingBalance', 'main'))],
+    [false, 5000000, false, false], 'tulis tanpa izin: ditolak di induk dan dihapus lagi di HP kasir');
+  // PIN: hash PIN owner tidak sampai ke HP kasir; PIN lokal HP kasir tidak menimpa PIN owner
+  await A.put('settings', { ...(await A.get('settings', 'main')), pinHash: 'OWNER', pinSalt: 's1' });
+  await settle([A, B, C, K], 15000);
+  ok(!('pinHash' in (await K.get('settings', 'main'))) && (await B.get('settings', 'main')).pinHash === 'OWNER', 'hash PIN owner: sampai ke perangkat ber-izin penuh, tidak ke HP kasir');
+  await K.put('settings', { ...(await K.get('settings', 'main')), pinHash: 'STAFF', pinSalt: 's2' });
+  await settle([A, B, C, K], 15000);
+  eq([(await A.get('settings', 'main')).pinHash, (await K.get('settings', 'main')).pinHash], ['OWNER', 'STAFF'], 'PIN lokal HP kasir tetap di HP itu, PIN owner tidak tertimpa');
+
+  // owner membuka menu Pengeluaran untuk HP kasir -> data pengeluaran ikut terkirim
+  await http('GET', `/local/perms?deviceId=devK&keys=${encodeURIComponent(JSON.stringify(['transaction', 'history', 'customers', 'expenses']))}`);
+  await sleep(1500);
+  await settle([A, B, C, K], 15000);
+  ok(!!(await K.get('expenses', 'gaji-ani')) && !(await K.get('employees', 'emp1')) && !(await K.get('openingBalance', 'main')), 'izin Pengeluaran dibuka: pengeluaran diterima, gaji & neraca tetap tidak');
+  // owner mencabut lagi -> data pengeluaran dihapus dari HP kasir
+  await http('GET', `/local/perms?deviceId=devK&keys=${encodeURIComponent(JSON.stringify(['transaction', 'history']))}`);
+  await sleep(1500);
+  await settle([A, B, C, K], 15000);
+  eq([(await K.all('expenses')).length, K.engine.state().perms], [0, ['history', 'transaction']], 'izin dicabut: semua pengeluaran dihapus dari HP kasir');
+  // owner membuka HPP/laba -> harga modal muncul setelah sinkron ulang
+  await http('GET', `/local/perms?deviceId=devK&keys=${encodeURIComponent(JSON.stringify(['transaction', 'history', 'cost']))}`);
+  await sleep(1500);
+  await settle([A, B, C, K], 15000);
+  eq((await K.get('products', 'p1')).costPrice, 35000, 'izin HPP dibuka: harga modal produk diterima');
+  // owner memberi lalu mencabut izin Pengaturan -> hash PIN owner hilang lagi dari HP kasir
+  await http('GET', `/local/perms?deviceId=devK&keys=${encodeURIComponent(JSON.stringify(['transaction', 'settings']))}`);
+  await sleep(1500); await settle([A, B, C, K], 15000);
+  eq((await K.get('settings', 'main')).pinHash, 'OWNER', 'izin Pengaturan dibuka: PIN owner berlaku di HP kasir');
+  await http('GET', `/local/perms?deviceId=devK&keys=${encodeURIComponent(JSON.stringify(['transaction']))}`);
+  await sleep(1500); await settle([A, B, C, K], 15000);
+  ok(!('pinHash' in (await K.get('settings', 'main'))), 'izin Pengaturan dicabut: hash PIN owner dihapus dari HP kasir');
 
   // 12) Perangkat dicabut -> perlu dipasangkan ulang
   const devs = JSON.parse((await local('/local/state')).devices);

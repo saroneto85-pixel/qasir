@@ -8,6 +8,8 @@
 //  - Record lokal membawa kolom `_sv` = revisi server yang menjadi dasar data tersebut, sehingga
 //    Perangkat Utama bisa menggabungkan perubahan serentak (mis. dua kasir menjual produk yang sama).
 
+import { makePerms } from './permissions.js';
+
 export const SV = '_sv';
 const sleepDefault = ms => new Promise(r => setTimeout(r, ms));
 
@@ -26,7 +28,8 @@ export function createSyncEngine({
   const STORES = new Set(storeNames);
   const st = {
     mode: 'standalone', native: {}, online: false, pending: 0, cursor: 0,
-    lastSync: 0, lastError: '', needsRepair: false, busy: '', started: false
+    lastSync: 0, lastError: '', needsRepair: false, busy: '', started: false,
+    perms: null // daftar izin dari Perangkat Utama (perangkat tambahan); null = belum diketahui / penuh
   };
   let seq = 0, chain = Promise.resolve();
   let pushTimer = null, pushing = false, pushAgain = false, pulling = false, generation = 0;
@@ -49,15 +52,19 @@ export function createSyncEngine({
   const parse = s => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
   const key = (s, id) => s + '\u0001' + id;
 
+  // Perangkat tambahan tanpa izin Pengaturan memakai PIN lokalnya sendiri (hash PIN owner tidak pernah diterima/dikirim).
+  const PIN_FIELDS = ['pinHash', 'pinSalt'];
+  const ownPin = () => st.mode === 'client' && !(st.perms && st.perms.includes('settings'));
+  const fieldsOf = name => (name === 'settings' && ownPin() ? [...(localFields[name] || []), ...PIN_FIELDS] : localFields[name] || []);
   function forServer(name, obj) {
     const o = { ...obj };
     delete o[SV];
-    for (const f of localFields[name] || []) delete o[f];
+    for (const f of fieldsOf(name)) delete o[f];
     return o;
   }
   function fromServer(name, payload, rev, localObj) {
     const o = { ...payload, [SV]: rev };
-    for (const f of localFields[name] || []) if (localObj && localObj[f] !== undefined) o[f] = localObj[f];
+    for (const f of fieldsOf(name)) if (localObj && localObj[f] !== undefined) o[f] = localObj[f];
     return o;
   }
   const sameData = (name, a, b) => JSON.stringify(forServer(name, a)) === JSON.stringify(forServer(name, b));
@@ -281,9 +288,48 @@ export function createSyncEngine({
     if (gen !== generation) return { more: false, stale: true }; // mode/server berganti selama menunggu
     if (res.status !== 200) { await httpError(res); throw new Error('Ambil data ditolak (' + res.status + ')'); }
     const data = JSON.parse(res.body);
+    if (Array.isArray(data.perms) && gen === generation) {
+      const restart = await locked(() => applyPermsChange(data.perms));
+      if (restart) return { more: true, permsChanged: true };
+    }
     await locked(() => (gen === generation && since === st.cursor) ? applyChanges(data.changes || [], Number(data.cursor ?? st.cursor)) : null);
     setOnline(true);
     return data;
+  }
+
+  /**
+   * Izin dari Perangkat Utama berubah: data yang tidak lagi diizinkan dihapus dari perangkat ini,
+   * lalu semua data yang diizinkan diambil ulang dari awal (mis. harga modal yang kini boleh dilihat).
+   * Mengembalikan true bila pengambilan harus diulang dari kursor 0.
+   */
+  async function applyPermsChange(keys) {
+    const canon = JSON.stringify([...keys].sort());
+    if (st.perms && JSON.stringify([...st.perms].sort()) === canon) return false;
+    const P = makePerms(keys);
+    const banned = [...STORES].filter(x => !P.canRead(x));
+    const set = [];
+    if (banned.length) {
+      const q = banned.map(() => '?').join(', ');
+      set.push({ statement: `DELETE FROM pos_records WHERE store_name IN (${q})`, values: banned });
+      set.push({ statement: `DELETE FROM sync_outbox WHERE store_name IN (${q})`, values: banned });
+    }
+    const restart = st.cursor > 0;
+    const hadSettings = !!(st.perms && st.perms.includes('settings'));
+    if (hadSettings && !P.has('settings')) {
+      // Izin Pengaturan dicabut: hapus salinan hash PIN owner dari perangkat ini.
+      for (const r of rows(await db.query("SELECT id, payload FROM pos_records WHERE store_name = 'settings'", []))) {
+        const o = parse(r.payload);
+        if (o && PIN_FIELDS.some(f => f in o)) { for (const f of PIN_FIELDS) delete o[f]; set.push({ statement: 'UPDATE pos_records SET payload = ? WHERE store_name = ? AND id = ?', values: [JSON.stringify(o), 'settings', r.id] }); }
+      }
+    }
+    set.push({ statement: 'INSERT OR REPLACE INTO sync_meta (k, v) VALUES (?, ?)', values: ['perms', canon] });
+    if (restart) set.push({ statement: 'INSERT OR REPLACE INTO sync_meta (k, v) VALUES (?, ?)', values: ['cursor', '0'] });
+    await db.executeSet(set, true);
+    st.perms = JSON.parse(canon);
+    if (restart) { st.cursor = 0; skipped.clear(); }
+    emit();
+    onRemoteChange([...STORES]);
+    return restart;
   }
 
   async function pullLoop() {
@@ -341,6 +387,7 @@ export function createSyncEngine({
     const m = rows(await db.query('SELECT IFNULL(MAX(seq), 0) AS m FROM sync_outbox', []));
     seq = Number(m[0]?.m || 0);
     st.cursor = Number(await getMeta('cursor')) || 0;
+    try { st.perms = JSON.parse(await getMeta('perms') || 'null'); } catch { st.perms = null; }
     await refreshNative();
     st.started = true;
     await refreshPending();
@@ -385,6 +432,8 @@ export function createSyncEngine({
           { statement: 'INSERT OR REPLACE INTO sync_meta (k, v) VALUES (?, ?)', values: ['cursor', '0'] }
         ], true);
         st.cursor = 0;
+        st.perms = null;
+        await db.executeSet([{ statement: "DELETE FROM sync_meta WHERE k = 'perms'", values: [] }], true);
         await plugin.setMode({ mode: 'server' });
         st.mode = 'server'; // penulisan yang menunggu antrean langsung tercatat di outbox
       });
@@ -418,9 +467,11 @@ export function createSyncEngine({
         await db.executeSet([
           { statement: 'DELETE FROM pos_records', values: [] },
           { statement: 'DELETE FROM sync_outbox', values: [] },
+          { statement: "DELETE FROM sync_meta WHERE k = 'perms'", values: [] },
           { statement: 'INSERT OR REPLACE INTO sync_meta (k, v) VALUES (?, ?)', values: ['cursor', '0'] }
         ], true);
         st.cursor = 0;
+        st.perms = null;
         st.mode = 'client';
       });
       await refreshNative();
@@ -440,7 +491,8 @@ export function createSyncEngine({
     await locked(async () => {
       await plugin.setMode({ mode: 'standalone' });
       st.mode = 'standalone';
-      await db.executeSet([{ statement: 'DELETE FROM sync_outbox', values: [] }], true);
+      st.perms = null;
+      await db.executeSet([{ statement: 'DELETE FROM sync_outbox', values: [] }, { statement: "DELETE FROM sync_meta WHERE k = 'perms'", values: [] }], true);
     });
     st.needsRepair = false;
     st.online = false;

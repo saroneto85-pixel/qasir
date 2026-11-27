@@ -1,6 +1,7 @@
 // UI menu Neraca Awal, Pembukuan dan Evaluasi Usaha. Rumus ada di pembukuan-logic.js.
 import { all, put } from './db.js';
 import * as BK from './pembukuan-logic.js';
+import { inventoryValue } from './bahan-logic.js';
 
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -71,6 +72,11 @@ async function renderPembukuan() {
   const note = !o.date ? '<div class="warn warn">Neraca Awal belum diisi. Isi dulu agar saldo kas dan sewa dihitung benar. <button class="link" onclick="showPage(\'neraca\')">Buka Neraca Awal →</button></div>' : '';
   if (bkTab === 'ringkas') {
     const b = BK.pembukuan(d, ym), p = b.p;
+    let iv = null;
+    try {
+      const [materials, menus, entries, invItems, invEntries] = await Promise.all(['materials', 'hppMenus', 'materialEntries', 'invItems', 'invEntries'].map(s => all(s)));
+      iv = inventoryValue({ materials, menus, entries, invItems, invEntries, products: d.products, transactions: d.transactions, expenses: d.expenses }, BK.monthTo(ym));
+    } catch (err) { console.warn('Nilai persediaan otomatis tidak tersedia', err); }
     const rows = [
       R('Penjualan bruto', rp(p.bruto), 'Tunai + non-tunai + tempo sebelum diskon'), R('Penjualan bersih', rp(p.bersih), 'Setelah diskon'),
       R('Jumlah transaksi', num(p.trx), 'Dari menu Transaksi'), R('Rata-rata per transaksi', rp(p.avgTrx), 'Penjualan bersih ÷ transaksi'),
@@ -91,12 +97,17 @@ async function renderPembukuan() {
         <p class="muted small">Isi nilai stok bahan hasil hitung fisik (stok opname) di akhir bulan agar HPP mencerminkan bahan yang benar-benar terpakai. Kosongkan bila tidak dihitung.</p>
         <div class="kv"><span>Persediaan awal bulan</span><b>${rp(b.stokAwal)}</b></div>
         <label class="bk-stock">Persediaan akhir (Rp)<input type="number" id="bkStockEnd" min="0" step="any" inputmode="decimal" value="${b.stokAkhirTerisi ? Math.round(b.stokAkhir) : ''}" placeholder="${Math.round(b.stokAwal)}"></label>
-        ${b.nilaiStok ? `<small class="muted">Nilai stok produk saat ini (stok × HPP): ${rp(b.nilaiStok)} <button type="button" class="link" id="bkStockUse">Pakai nilai ini</button></small>` : ''}
+        ${iv && (iv.adaBahan || iv.produk) ? `<div class="bk-suggest"><small class="muted">Usulan dari data aplikasi (akhir ${label(ym)}):</small>
+          <div class="kv"><span>Bahan baku (Stok Bahan Baku${iv.adaBahan ? '' : ', belum ada catatan'})</span><b>${rp(iv.bahan)}</b></div>
+          <div class="kv"><span>Produk jadi (stok × HPP, saat ini)</span><b>${rp(iv.produk)}</b></div>
+          ${iv.dikecualikan ? `<small class="muted">Stok produk ber-resep yang bahannya dipotong per penjualan (${rp(iv.dikecualikan)}) tidak dihitung agar tidak dobel dengan bahan bakunya.</small>` : ''}
+          <button type="button" class="outline full" id="bkStockUse">Pakai ${rp(iv.total)}</button>
+          <small class="muted">Periksa dulu dengan stok opname; nilai bahan memakai harga beli terakhir.</small></div>` : ''}
         <button class="btn full" id="bkStockSave">Simpan persediaan akhir</button></div>
       <div class="panel"><div class="panel-head"><h2>Peringatan otomatis</h2></div><div class="warn-list">${b.warn.map(w => `<div class="warn ${w.level}">${esc(w.text)}</div>`).join('')}</div>
       <p class="muted small">Alur: penjualan → kas &amp; omzet naik; pembelian/gaji → biaya &amp; kas turun; hutang/piutang → kas berubah saat dibayar. Rincian kas ada di tab Buku Kas.</p></div></div></div>`;
     $('bkStockSave').onclick = () => saveStockEnd(ym);
-    if ($('bkStockUse')) $('bkStockUse').onclick = () => { $('bkStockEnd').value = Math.round(b.nilaiStok); };
+    if ($('bkStockUse')) $('bkStockUse').onclick = () => { $('bkStockEnd').value = Math.round(iv.total); $('bkStockEnd').focus(); };
   } else if (bkTab === 'labarugi') {
     const ms = BK.monthlyPnl(d, o.date ? BK.ymOf(o.date) : ym, 12), tot = k => ms.reduce((s, m) => s + m[k], 0);
     const line = (l, k, cls = '', f = rp) => `<tr class="${cls}"><td class="stick">${l}</td>${ms.map(m => `<td class="num">${f(m[k])}</td>`).join('')}<td class="num"><b>${f(tot(k))}</b></td></tr>`;

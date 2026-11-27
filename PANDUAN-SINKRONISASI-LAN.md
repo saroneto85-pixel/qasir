@@ -1,4 +1,4 @@
-# Panduan Sinkronisasi Antar Perangkat — KASIR 2.8.0
+# Panduan Sinkronisasi Antar Perangkat — KASIR 2.11.0
 
 ## Gambaran
 ```
@@ -30,6 +30,28 @@ Pilih HP/tablet yang paling sering menyala dan biasanya dicas di meja kasir — 
 5. Data lama di perangkat ini dicadangkan otomatis ke folder *Documents* (atau penyimpanan aplikasi), lalu diganti data toko. Aplikasi dimuat ulang.
 
 Perangkat mendapat kode **K2, K3, …** yang dipakai pada nomor nota (`INV-20261127-K2-001`).
+
+## 2a. Mengatur akses perangkat tambahan (privasi owner) — sejak 2.11.0
+
+Owner menentukan dari **Perangkat Utama** apa saja yang boleh dibuka tiap perangkat tambahan:
+**Pengaturan → Sinkronisasi → Perangkat terhubung → tombol "Akses"** pada perangkat yang dimaksud.
+
+- Pilihan cepat: **Kasir** (Transaksi Baru, Riwayat, Pelanggan), **Pelayan** (Transaksi Baru, Riwayat),
+  **Dapur** (Kontrol Persediaan, Stok Bahan Baku), **Penuh (owner)**.
+- Atau centang satu per satu: menu, lalu fitur sensitif — *Lihat HPP/modal & laba*, *Edit/hapus transaksi*,
+  *Gaji karyawan*, *Backup, restore & ekspor data*.
+- Perangkat baru otomatis mendapat akses **Kasir** sampai owner mengubahnya.
+- Perubahan berlaku dalam beberapa detik, tanpa perlu pairing ulang.
+
+Yang terjadi di balik layar:
+1. Data menu yang tidak diizinkan (mis. Neraca Awal, Pembukuan/laba rugi, Pengeluaran, Aset, Hutang, Gaji)
+   **tidak pernah dikirim** ke perangkat itu. Data yang terlanjur ada di perangkat dihapus saat akses dicabut.
+2. Tanpa izin *HPP/modal*, harga modal produk dan modal per item nota dihapus sebelum dikirim.
+3. Perubahan dari perangkat tambahan pada data yang tidak diizinkan **ditolak server**,
+   walau aplikasinya dimodifikasi.
+4. PIN owner tidak pernah dikirim ke perangkat tambahan; PIN di perangkat tambahan berlaku lokal.
+5. Di perangkat tambahan, menu/kotak/tombol yang tidak diizinkan disembunyikan; Pengaturan hanya
+   menampilkan sinkronisasi dan printer.
 
 ## 3. IP tetap untuk Kasir Induk (DHCP Reservation)
 Pencarian otomatis (NSD) sudah cukup untuk kebanyakan toko. IP tetap membuat sambungan ulang lebih cepat dan menjadi cadangan bila router memblokir mDNS.

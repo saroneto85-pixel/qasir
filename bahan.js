@@ -138,9 +138,10 @@ function renderCard() {
   const label = { awal: 'Stok awal', beli: 'Belanja', masuk: 'Masuk lain', jual: 'Penjualan', produksi: 'Masakan (Persediaan)', pakai: 'Pemakaian lain', rusak: 'Rusak', opname: 'Opname' };
   const head = inv ? `<p class="bahan-note">Bahan ini dipantau di <b>Kontrol Persediaan</b> (item “${esc(inv.name)}”). Belanja dengan kode ${esc(m.code)} otomatis tercatat di sana sebagai “Bahan masuk”. Di bawah hanya riwayat belanjanya.</p>`
     : m.tracked === false ? '<p class="bahan-note">Bahan ini tidak dilacak stoknya (biaya overhead). Di bawah riwayat belanjanya.</p>' : '';
-  $('mcBody').innerHTML = head + `<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th class="num">Masuk</th><th class="num">Keluar</th><th class="num">Saldo</th><th></th></tr></thead><tbody>
-    ${inv || m.tracked === false ? '' : `<tr class="muted"><td>${dmy(from)}</td><td>Saldo awal bulan</td><td></td><td></td><td class="num"><b>${num(open)}</b> ${u}</td><td></td></tr>`}
-    ${rows.map(r => `<tr><td>${dmy(r.date)}</td><td><b>${label[r.kind] || r.kind}</b><small>${esc(r.label)}${r.value ? ' · ' + rp(r.value) : ''}</small></td><td class="num">${r.delta > 0 ? num(r.delta) : ''}</td><td class="num">${r.delta < 0 ? num(-r.delta) : ''}</td><td class="num">${inv || m.tracked === false ? '' : num(r.balance)}</td><td>${D.entries.some(x => x.id === r.ref) ? `<button class="link danger-link" type="button" onclick="bahanUi.deleteEntry('${esc(r.ref)}')">Hapus</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Belum ada pergerakan di bulan ini.</td></tr>'}
+  const noBal = inv || m.tracked === false;
+  $('mcBody').innerHTML = head + `<div class="table-wrap"><table class="mc-table"><thead><tr><th>Tanggal</th><th>Keterangan</th><th class="num">Masuk / keluar</th>${noBal ? '' : `<th class="num">Saldo (${u})</th>`}</tr></thead><tbody>
+    ${noBal ? '' : `<tr class="muted"><td>${dmy(from)}</td><td>Saldo awal bulan</td><td></td><td class="num"><b>${num(open)}</b></td></tr>`}
+    ${rows.map(r => `<tr><td>${dmy(r.date)}</td><td><b>${label[r.kind] || r.kind}</b><small>${esc(r.label)}${r.value ? ' · ' + rp(r.value) : ''}</small>${D.entries.some(x => x.id === r.ref) ? `<button class="link danger-link mc-del" type="button" onclick="bahanUi.deleteEntry('${esc(r.ref)}')">Hapus catatan</button>` : ''}</td><td class="num ${r.delta < 0 ? 'mc-out' : 'mc-in'}">${r.kind === 'opname' ? '= ' + num(r.balance) : r.delta > 0 ? '+' + num(r.delta) : r.delta < 0 ? '−' + num(-r.delta) : ''}</td>${noBal ? '' : `<td class="num">${num(r.balance)}</td>`}</tr>`).join('') || `<tr><td colspan="${noBal ? 3 : 4}" class="muted">Belum ada pergerakan di bulan ini.</td></tr>`}
   </tbody></table></div>`;
 }
 async function deleteEntry(id) {
@@ -295,18 +296,22 @@ function draftMenu() {
 function renderRecipe() {
   const d = draftMenu(), p = productForMenu(d, D.products);
   const c = menuCost({ ...d, price: p && n(p.price) > 0 ? n(p.price) : d.price }, D.materials);
+  const matOptions = [...D.materials].sort((x, y) => String(x.code).localeCompare(String(y.code), 'id', { numeric: true }))
+    .map(m => `<option value="${esc(m.code)}">${esc(m.code)} · ${esc(m.name)}</option>`).join('');
   $('hmLines').innerHTML = editingItems.map((it, i) => {
     const m = matByCode(it.code), uc = unitCost(m), qp = (Number(it.qty) || 0) / (d.batch || 1);
-    return `<tr><td><input list="hmMatList" value="${esc(it.code)}" data-i="${i}" data-f="code" placeholder="B001" class="hm-code"><small class="${m ? '' : 'warn-text'}">${m ? esc(m.name) : it.code ? 'kode tidak dikenal' : ''}</small></td>
+    const opts = (it.code && !m ? `<option value="${esc(it.code)}" selected>${esc(it.code)} · (tidak terdaftar)</option>` : '') + matOptions;
+    return `<tr><td><select data-i="${i}" data-f="code" class="hm-code" aria-label="Bahan"><option value="">— pilih bahan —</option>${opts}</select><small class="${m ? '' : 'warn-text'}">${m ? esc((m.buyUnit ? 'beli per ' + m.buyUnit + ' ' + rp(m.buyPrice) : '')) : it.code ? 'kode tidak dikenal' : ''}</small></td>
       <td><input list="hmGroupList" value="${esc(it.group || '')}" data-i="${i}" data-f="group"></td>
       <td><input type="number" min="0" step="any" inputmode="decimal" value="${esc(it.qty)}" data-i="${i}" data-f="qty"><small>${esc(m?.stockUnit || '')}</small></td>
-      <td class="num">${num(qp, 3)}</td><td class="num">${m ? (uc ? rp(qp * uc) : '<span class="warn-text">harga kosong</span>') : '—'}</td>
+      <td class="num" data-l="Qty/porsi">${num(qp, 3)}</td><td class="num" data-l="Biaya/porsi">${m ? (uc ? rp(qp * uc) : '<span class="warn-text">harga kosong</span>') : '—'}</td>
       <td><button class="link danger-link" type="button" data-del="${i}" aria-label="Hapus baris">✕</button></td></tr>`;
   }).join('');
   $('hmSummary').innerHTML = `HPP per porsi <b>${rp(c.perPortion)}</b> · per batch ${rp(c.perBatch)} · laba ${rp(c.profit)} · food cost <b>${pct(c.pct)}</b>`
     + (p ? `<br><small>Terhubung ke produk kasir: ${esc(p.name)} (harga ${rp(p.price)}, modal sekarang ${rp(p.costPrice)})</small>` : '<br><small class="warn-text">Belum terhubung ke produk kasir: buat produk dengan SKU = kode menu, atau pilih produknya.</small>')
     + (menuStatus(c) ? `<br><small class="warn-text">${esc(menuStatus(c))}</small>` : '');
-  $('hmLines').querySelectorAll('input').forEach(inp => {
+  $('hmLines').querySelectorAll('select.hm-code').forEach(sel => { sel.value = editingItems[Number(sel.dataset.i)].code || ''; });
+  $('hmLines').querySelectorAll('input, select').forEach(inp => {
     inp.onchange = () => { editingItems[Number(inp.dataset.i)][inp.dataset.f] = inp.dataset.f === 'code' ? normCode(inp.value) : inp.value; renderRecipe(); };
   });
   $('hmLines').querySelectorAll('[data-del]').forEach(b => { b.onclick = () => { editingItems.splice(Number(b.dataset.del), 1); renderRecipe(); }; });
@@ -393,7 +398,20 @@ async function previewImport() {
     $('biGo').disabled = true;
   }
 }
+/** Kategori produk baru (dari impor) ikut didaftarkan agar muncul di form & kelola kategori. */
+let catCache = null;
+async function ensureCategory(name) {
+  name = String(name || '').trim();
+  if (!name) return;
+  catCache ||= await all('categories');
+  const key = name.toLocaleLowerCase('id-ID');
+  if (catCache.some(c => String(c.name || '').toLocaleLowerCase('id-ID') === key)) return;
+  const c = { id: key, name, createdAt: Date.now(), updatedAt: Date.now() };
+  await put('categories', c);
+  catCache.push(c);
+}
 async function doImport() {
+  catCache = null;
   if (!importParsed) return;
   $('biGo').disabled = true;
   try {
@@ -408,6 +426,7 @@ async function doImport() {
         const p = { id: uid(), name: h.name, sku: h.code, category: h.category || 'Umum', price: n(h.price), costPrice: cost, stock: null, photo: '' };
         await put('products', p);
         D.products.push(p);
+        await ensureCategory(p.category);
         h.productId = p.id;
         made++;
       }
@@ -453,38 +472,64 @@ function expenseGroupOf(type) { return (D.settings.expenseGroups || {})[type] ||
 /** Dipanggil app.js saat dialog pengeluaran dibuka/jenis diganti. */
 async function fillExpenseForm(exp) {
   await load();
-  $('eMaterialList').innerHTML = D.materials.map(m => `<option value="${esc(m.code)}">${esc(m.name)} · ${esc(m.buyUnit || '')} ${rp(m.buyPrice)}</option>`).join('');
-  $('eMaterial').value = exp?.materialCode || '';
+  // Dropdown kode bahan: diambil langsung dari daftar Stok Bahan Baku, dikelompokkan per kategori.
+  const groups = new Map();
+  for (const m of [...D.materials].sort((a, b) => String(a.code).localeCompare(String(b.code), 'id', { numeric: true }))) {
+    const g = m.category || 'Lainnya';
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(m);
+  }
+  const cur = normCode(exp?.materialCode || '');
+  const orphan = cur && !matByCode(cur) ? `<option value="${esc(cur)}">${esc(cur)} · (tidak terdaftar lagi)</option>` : '';
+  $('eMaterial').innerHTML = '<option value="">— Bukan bahan dari Stok Bahan Baku —</option>' + orphan +
+    (() => {
+      const opt = m => `<option value="${esc(m.code)}">${esc(m.code)} · ${esc(m.name)}${m.buyUnit ? ' (' + esc(m.buyUnit) + ')' : ''}</option>`;
+      return groups.size > 1 ? [...groups].map(([g, list]) => `<optgroup label="${esc(g)}">${list.map(opt).join('')}</optgroup>`).join('') : [...groups.values()].flat().map(opt).join('');
+    })();
+  $('eMaterial').value = cur;
+  lastPicked = cur;
   $('eMaterialPrice').checked = true;
   toggleExpenseMaterial(exp);
   materialInfo();
 }
 function toggleExpenseMaterial(exp) {
-  const show = D.materials.length && (expenseGroupOf($('eType').value) === 'bahan' || (exp && exp.materialCode) || $('eMaterial').value);
+  // Muncul untuk jenis yang masuk HPP di Pembukuan (bahan & operasional, mis. gas/arang/kemasan).
+  const g = expenseGroupOf($('eType').value);
+  const show = D.materials.length && (g === 'bahan' || g === 'operasional' || (exp && exp.materialCode) || $('eMaterial').value);
   $('eMaterialWrap').hidden = !show;
 }
 function materialInfo() {
   const code = normCode($('eMaterial').value), m = matByCode(code);
-  if (!code) { $('eMaterialInfo').textContent = 'Opsional. Isi kode agar belanja ini menambah Stok Bahan Baku.'; return; }
+  if (!code) { $('eMaterialInfo').textContent = 'Pilih bahan agar belanja ini otomatis menambah Stok Bahan Baku.'; return; }
   if (!m) { $('eMaterialInfo').innerHTML = '<span class="warn-text">Kode bahan tidak dikenal</span>'; return; }
   const s = stockSummary(D, '0000-01-01', localToday()).find(x => x.code === code);
   const inv = invItemForMaterial(m, D.invItems);
   $('eMaterialInfo').innerHTML = `${esc(m.name)} · 1 ${esc(m.buyUnit || 'satuan')} = ${num(m.perBuy)} ${esc(m.stockUnit || '')}` +
     (inv ? ` · masuk ke Kontrol Persediaan (“${esc(inv.name)}”)` : m.tracked === false ? ' · tidak dilacak stoknya' : ` · stok sekarang ${num(s?.close)} ${esc(m.stockUnit || '')}`);
 }
+let lastPicked = '';
 function onMaterialPicked() {
-  const m = matByCode($('eMaterial').value);
-  $('eMaterial').value = normCode($('eMaterial').value);
+  const code = normCode($('eMaterial').value), m = matByCode(code);
+  const changed = code !== lastPicked;
+  lastPicked = code;
   materialInfo();
   if (!m) return;
   const sel = $('eName');
   if (![...sel.options].some(o => o.value === m.name)) sel.insertAdjacentHTML('afterbegin', `<option value="${esc(m.name)}">${esc(m.name)}</option>`);
   sel.value = m.name;
   $('eUnit').value = m.buyUnit || '';
-  if (!Number($('eUnitPrice').value) && n(m.buyPrice)) {
+  // Ganti bahan -> harga satuan ikut harga beli bahan tersebut (masih bisa diubah sesuai nota).
+  if ((changed || !Number($('eUnitPrice').value)) && n(m.buyPrice)) {
     $('eUnitPrice').value = m.buyPrice;
     $('eAmount').value = Math.round((Number($('eQty').value) || 1) * n(m.buyPrice) * 100) / 100;
   }
+}
+/** Memilih Item yang namanya sama dengan bahan berkode -> kode bahan terpilih otomatis. */
+function onExpenseItemPicked() {
+  if ($('eMaterialWrap').hidden || $('eMaterial').value) return;
+  const name = String($('eName').value || '').trim().toLowerCase();
+  const m = name && D.materials.find(x => String(x.name || '').trim().toLowerCase() === name);
+  if (m) { $('eMaterial').value = m.code; onMaterialPicked(); }
 }
 /** Kode bahan untuk disimpan; false = batalkan simpan. */
 function collectExpenseMaterial() {
@@ -563,7 +608,7 @@ function bind() {
   $('biFile').onchange = previewImport;
   $('biGo').onclick = doImport;
   $('eMaterial').addEventListener('change', onMaterialPicked);
-  $('eMaterial').addEventListener('input', materialInfo);
+  $('eName').addEventListener('change', onExpenseItemPicked);
   $('eType').addEventListener('change', () => toggleExpenseMaterial());
 }
 

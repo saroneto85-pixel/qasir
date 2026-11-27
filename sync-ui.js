@@ -1,6 +1,7 @@
 // Panel "Sinkronisasi antar perangkat" di Pengaturan + indikator status di kepala aplikasi.
 import { all, isNative } from './db.js';
 import { LanSync, onSyncState, syncEngine, backupRows } from './sync.js';
+import { PAGE_LABELS, FEATURE_LABELS, PAGES, FEATURES, PRESETS, normalize } from './permissions.js';
 
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -88,7 +89,7 @@ function serverHtml(n) {
     </div>
     <div class="sync-pair"><div><small class="muted">Kode pairing untuk perangkat tambahan</small><div class="sync-code">${esc(code)}</div></div><button class="outline" type="button" onclick="syncUi.newCode()">Kode baru</button></div>
     <h3>Perangkat terhubung (${devs.length})</h3>
-    ${devs.length ? `<div class="sync-devs">${devs.map((d, i) => `<div class="sync-dev"><span class="dot ${d.online ? 'ok' : ''}"></span><div><b>${esc(d.name)}</b> <span class="debt-tag">${esc(d.code)}</span><br><small class="muted">${d.online ? 'online' : 'terakhir ' + ago(d.lastSeen)}</small></div><button class="link danger" type="button" onclick="syncUi.revoke(${i})">Cabut</button></div>`).join('')}</div>` : '<p class="muted small">Belum ada. Di HP/tablet lain: Pengaturan → Sinkronisasi → <b>Gabung ke Perangkat Utama</b>, lalu masukkan kode di atas.</p>'}
+    ${devs.length ? `<div class="sync-devs">${devs.map((d, i) => `<div class="sync-dev"><span class="dot ${d.online ? 'ok' : ''}"></span><div><b>${esc(d.name)}</b> <span class="debt-tag">${esc(d.code)}</span><br><small class="muted">${d.online ? 'online' : 'terakhir ' + ago(d.lastSeen)}</small><span class="perm-sum">Akses: ${esc(permSummary(d.perms))}</span></div><button class="link" type="button" onclick="syncUi.openPerms(${i})">Akses</button><button class="link danger" type="button" onclick="syncUi.revoke(${i})">Cabut</button></div>`).join('')}</div>` : '<p class="muted small">Belum ada. Di HP/tablet lain: Pengaturan → Sinkronisasi → <b>Gabung ke Perangkat Utama</b>, lalu masukkan kode di atas.</p>'}
     <p class="muted small">Data induk: ${Number(n.records || 0).toLocaleString('id-ID')} record · revisi ${Number(n.latest || 0).toLocaleString('id-ID')} · menunggu dikirim ${st.pending || 0}</p>
     ${staticIpGuide(ips[0] || '192.168.1.10', port)}
     <button class="outline full danger" type="button" onclick="syncUi.leave()">Berhenti menjadi Perangkat Utama</button>`;
@@ -102,6 +103,7 @@ function clientHtml(n) {
     <p>Toko: <b>${esc(n.storeName || '—')}</b><br><small class="muted">Perangkat Utama: ${esc((n.host || '?') + ':' + (n.port || ''))} (ditemukan otomatis lewat NSD)</small></p>
     <p class="small">Perangkat ini: <b>${esc(n.deviceName || 'Perangkat tambahan')}</b> <span class="debt-tag">${esc(code)}</span><br><small class="muted">Nomor nota dari perangkat ini: ${esc(sample)}</small></p>
     <p class="muted small">Menunggu dikirim: ${st.pending || 0} perubahan · sinkron terakhir: ${ago(st.lastSync)}</p>
+    <p class="small">Akses perangkat ini: <b>${esc(st.perms ? permSummary(st.perms) : 'menunggu Perangkat Utama…')}</b><br><small class="muted">Diatur owner di Perangkat Utama → Pengaturan → Perangkat terhubung → Akses.</small></p>
     <p class="muted small">Aplikasi tetap bisa dipakai saat Wi-Fi putus; perubahan dikirim otomatis begitu tersambung lagi.</p>
     <div class="sync-actions"><button class="btn" type="button" onclick="syncUi.syncNow()">Sinkronkan sekarang</button><button class="outline danger" type="button" onclick="syncUi.leave()">Putuskan (jadi Mandiri)</button></div>`;
 }
@@ -117,6 +119,63 @@ function staticIpGuide(ip, port) {
     <li>Simpan, lalu matikan-nyalakan Wi-Fi di HP ini. Server toko memakai port <b>${esc(port)}</b>.</li>
   </ol>
   <p class="muted small">Bila memakai hotspot HP: jadikan HP Kasir Induk sebagai pemancar hotspot, atau pastikan semua perangkat tersambung ke hotspot yang sama. Matikan "AP isolation / Isolasi klien" di router bila perangkat tidak saling menemukan.</p></details>`;
+}
+
+// ---------- izin akses perangkat tambahan ----------
+function permSummary(keys) {
+  const k = normalize(keys || []);
+  for (const [, p] of Object.entries(PRESETS)) if (JSON.stringify(normalize(p.keys)) === JSON.stringify(k)) return p.label;
+  const pages = k.filter(x => PAGES.includes(x)).length;
+  return `${pages} menu${k.includes('cost') ? ', HPP & laba' : ''}${k.includes('txEdit') ? ', edit transaksi' : ''}`;
+}
+let permTarget = null;
+function permDialog() {
+  let d = $('permDialog');
+  if (d) return d;
+  document.body.insertAdjacentHTML('beforeend', `<dialog id="permDialog"><form method="dialog" id="permForm"><div class="modal-head"><h2 id="permTitle">Akses perangkat</h2><button type="button" class="x" data-close aria-label="Tutup">×</button></div>
+    <p class="muted small">Perangkat ini hanya bisa membuka menu dan fitur yang dicentang. Data dari menu yang tidak dicentang (mis. laba rugi, neraca, gaji) <b>tidak dikirim</b> ke perangkat tersebut, dan perubahan ke data itu ditolak.</p>
+    <div class="perm-presets">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" class="outline" data-preset="${k}">${esc(p.label)}</button>`).join('')}</div>
+    <h3>Menu</h3><div class="perm-grid">${PAGES.map(k => `<label class="chk"><input type="checkbox" name="perm" value="${k}"> ${esc(PAGE_LABELS[k])}</label>`).join('')}</div>
+    <h3>Fitur sensitif</h3><div class="perm-grid">${FEATURES.map(k => `<label class="chk"><input type="checkbox" name="perm" value="${k}"> ${esc(FEATURE_LABELS[k])}</label>`).join('')}</div>
+    <p class="muted small" id="permHint"></p>
+    <menu><button type="button" class="outline" data-close>Batal</button><button type="button" class="btn" id="permSave">Simpan akses</button></menu></form></dialog>`);
+  d = $('permDialog');
+  const boxes = () => [...d.querySelectorAll('input[name=perm]')];
+  const sync = () => {
+    const sel = boxes().filter(b => b.checked).map(b => b.value), norm = normalize(sel);
+    const cost = d.querySelector('input[value=cost]');
+    const forced = norm.includes('cost') && !sel.includes('cost');
+    cost.checked = norm.includes('cost'); cost.disabled = forced;
+    $('permHint').textContent = forced ? 'HPP & laba otomatis terbuka karena menu HPP Menu / Neraca Awal / Pembukuan / Evaluasi dipilih.' : '';
+  };
+  d.addEventListener('change', sync);
+  d.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+    const keys = PRESETS[b.dataset.preset].keys;
+    boxes().forEach(x => { x.checked = keys.includes(x.value); x.disabled = false; });
+    sync();
+  });
+  $('permSave').onclick = async () => {
+    const keys = normalize(boxes().filter(b => b.checked).map(b => b.value));
+    try {
+      await LanSync.setDevicePerms({ deviceId: permTarget.deviceId, keys: JSON.stringify(keys) });
+      d.close();
+      toast(`Akses ${permTarget.name} diperbarui. Perangkat menyesuaikan dalam beberapa detik.`);
+      await refresh();
+    } catch (e) { toast('Gagal menyimpan akses: ' + (e.message || e)); }
+  };
+  d._sync = sync;
+  return d;
+}
+async function openPerms(i) {
+  const dev = devList[i];
+  if (!dev) return;
+  if (!await pin('mengatur akses perangkat')) return;
+  permTarget = dev;
+  const d = permDialog(), keys = normalize(dev.perms || []);
+  $('permTitle').textContent = `Akses: ${dev.name} (${dev.code})`;
+  d.querySelectorAll('input[name=perm]').forEach(b => { b.checked = keys.includes(b.value); b.disabled = false; });
+  d._sync();
+  d.showModal();
 }
 
 // ---------- aksi ----------
@@ -263,7 +322,7 @@ function wire() {
   $('syncPairBtn') && ($('syncPairBtn').onclick = pairNow);
 }
 
-window.syncUi = { beServer, startServer, stopServer, newCode, revoke, leave, syncNow, openJoin };
+window.syncUi = { beServer, startServer, stopServer, newCode, revoke, leave, syncNow, openJoin, openPerms };
 wire();
 onSyncState(s => { st = s; render(); });
 // Perbarui daftar perangkat online di Perangkat Utama secara berkala saat halaman Pengaturan terbuka.

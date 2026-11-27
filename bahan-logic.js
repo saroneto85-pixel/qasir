@@ -435,3 +435,90 @@ export function mergeImport(parsed, existing, products, makeId) {
   });
   return { materials, menus, links };
 }
+
+/**
+ * Nilai persediaan untuk Pembukuan (persediaan akhir bulan), tanpa dobel hitung:
+ *  - bahan  : nilai sisa Stok Bahan Baku pada tanggal `to` (termasuk bahan yang dipantau di Persediaan);
+ *  - produk : stok produk × HPP satuan, KECUALI produk yang bahannya dipotong per penjualan lewat resep
+ *             (bahannya masih tercatat di Stok Bahan Baku sampai terjual -> akan terhitung dua kali).
+ * Produk jadi dinilai pada stok saat ini (aplikasi tidak menyimpan riwayat stok produk per tanggal).
+ */
+export function inventoryValue(D, to) {
+  const rows = stockSummary(D, '0000-01-01', to);
+  const bahan = rows.reduce((s, r) => s + (r.value || 0), 0);
+  const prodMenu = productionMenus(D.menus, D.products, D.invItems);
+  const perSale = new Set();
+  for (const m of D.menus || []) {
+    if (!(m.items || []).length) continue;
+    const p = productForMenu(m, D.products);
+    if (p && !prodMenu.has(m.id)) perSale.add(p.id); // dipotong saat produksi -> nilai produk jadi sah dihitung
+  }
+  let produk = 0, dikecualikan = 0;
+  for (const p of D.products || []) {
+    if (p.stock === null || p.stock === undefined || p.stock === '') continue;
+    const v = n(p.stock) * n(p.costPrice);
+    if (perSale.has(p.id)) dikecualikan += v; else produk += v;
+  }
+  return { bahan: r6(bahan), produk: r6(produk), dikecualikan: r6(dikecualikan), total: r6(bahan + produk), adaBahan: rows.some(r => r.status !== 'kosong') };
+}
+
+/**
+ * Pemeriksaan konsistensi Stok Bahan Baku & HPP Menu terhadap menu lain (dipakai Pemeriksaan data).
+ * Hasil: [{ level: 'error'|'warn'|'info', area, title, detail }]
+ * groupOf(expense) -> 'bahan' | 'operasional' | 'gaji' | 'beban' (kelompok Pembukuan).
+ */
+export function auditBahan(D, { today, groupOf = () => 'bahan', opening = null } = {}) {
+  const out = [], add = (level, area, title, detail) => out.push({ level, area, title, detail });
+  const M = D.materials || [], menus = D.menus || [], P = D.products || [], X = D.expenses || [];
+  if (!M.length && !menus.length) return out;
+  const mats = indexByCode(M);
+  // kode bahan ganda / data bahan tidak lengkap
+  const seen = new Map();
+  for (const m of M) { const k = normCode(m.code); if (!k) continue; seen.set(k, (seen.get(k) || 0) + 1); }
+  const dup = [...seen].filter(([, c]) => c > 1).map(([k]) => k);
+  if (dup.length) add('error', 'Stok Bahan Baku', `Kode bahan ganda: ${dup.join(', ')}`, 'Kode bahan harus unik agar belanja dan resep tidak tertukar.');
+  const noCode = M.filter(m => !normCode(m.code)); if (noCode.length) add('error', 'Stok Bahan Baku', `${noCode.length} bahan tanpa kode`, noCode.slice(0, 5).map(m => m.name).join(', '));
+  const badUnit = M.filter(m => !(n(m.perBuy) > 0) || !String(m.stockUnit || '').trim());
+  if (badUnit.length) add('warn', 'Stok Bahan Baku', `${badUnit.length} bahan belum lengkap satuannya`, 'Isi per satuan beli & satuan stok: ' + badUnit.slice(0, 5).map(m => m.code).join(', '));
+  // resep
+  const unknown = [];
+  for (const mn of menus) for (const it of mn.items || []) if (!mats.has(normCode(it.code))) unknown.push(`${mn.code}→${normCode(it.code) || '?'}`);
+  if (unknown.length) add('error', 'HPP Menu', `${unknown.length} baris resep memakai kode bahan yang tidak ada`, unknown.slice(0, 6).join(', ') + ' — HPP dan pemotongan stok bahan tersebut tidak dihitung.');
+  const noPrice = M.filter(m => !(unitCost(m) > 0) && menus.some(mn => (mn.items || []).some(it => normCode(it.code) === normCode(m.code))));
+  if (noPrice.length) add('warn', 'HPP Menu', `${noPrice.length} bahan di resep belum ada harganya`, 'HPP menu terlalu rendah: ' + noPrice.slice(0, 6).map(m => m.code).join(', '));
+  // menu <-> produk kasir
+  const unlinked = menus.filter(mn => (mn.items || []).length && !productForMenu(mn, P));
+  if (unlinked.length) add('warn', 'HPP Menu', `${unlinked.length} menu belum terhubung ke produk kasir`, 'Penjualannya tidak mengurangi Stok Bahan Baku: ' + unlinked.slice(0, 5).map(m => m.code).join(', '));
+  const costDiff = [];
+  for (const mn of menus) {
+    const p = productForMenu(mn, P); if (!p || !(mn.items || []).length) continue;
+    const c = menuCost(mn, mats).perPortion, cp = n(p.costPrice);
+    if (c > 0 && (!(cp > 0) || Math.abs(cp - c) / c > 0.05)) costDiff.push(`${mn.code} (modal ${Math.round(cp).toLocaleString('id-ID')} vs HPP ${Math.round(c).toLocaleString('id-ID')})`);
+  }
+  if (costDiff.length) add('warn', 'HPP Menu', `${costDiff.length} produk: harga modal berbeda >5% dari HPP resep`, 'Laba kotor standar & selisih HPP memakai harga modal produk. Tekan "Isi harga modal produk" di HPP Menu. ' + costDiff.slice(0, 4).join('; '));
+  // pengeluaran ber-kode bahan
+  const badCode = X.filter(x => normCode(x.materialCode) && !mats.has(normCode(x.materialCode)));
+  if (badCode.length) add('warn', 'Pengeluaran', `${badCode.length} belanja memakai kode bahan yang sudah tidak ada`, 'Stok bahannya tidak bertambah. Ubah kode bahan di pengeluaran tersebut.');
+  const wrongGroup = X.filter(x => normCode(x.materialCode) && ['gaji', 'beban'].includes(groupOf(x)));
+  if (wrongGroup.length) add('warn', 'Pengeluaran', `${wrongGroup.length} belanja ber-kode bahan tercatat sebagai beban di luar HPP`, 'Stok bahan bertambah tetapi biayanya tidak masuk HPP di Pembukuan. Ganti jenis pengeluarannya ke kelompok Bahan/Operasional.');
+  // Persediaan: catatan "Bahan masuk" manual yang kemungkinan sama dengan belanja otomatis (dobel)
+  const auto = (D.invEntries || []).filter(e => e.source === 'pengeluaran');
+  const twins = auto.filter(a => (D.invEntries || []).some(e => e.source !== 'pengeluaran' && e.itemId === a.itemId && e.area === 'dapur' && e.kind === 'masuk' && e.date === a.date && Math.abs(n(e.qty) - n(a.qty)) < 1e-9));
+  if (twins.length) add('warn', 'Persediaan', `${twins.length} "Bahan masuk" kemungkinan tercatat dua kali`, 'Belanja ber-kode bahan sudah otomatis masuk ke Persediaan; hapus catatan manual yang sama (tanggal & jumlah sama) agar stok dapur tidak dobel.');
+  // stok
+  if (M.length) {
+    const S = stockSummary(D, '0000-01-01', today || '9999-12-31');
+    const minus = S.filter(s => s.status === 'minus');
+    if (minus.length) add('warn', 'Stok Bahan Baku', `${minus.length} bahan stoknya minus`, 'Biasanya belanja belum diberi kode bahan, stok awal belum dicatat, atau resep terlalu besar: ' + minus.slice(0, 6).map(s => s.code).join(', '));
+    const ignored = S.filter(s => s.invItem && (D.entries || []).some(e => normCode(e.code) === s.code));
+    if (ignored.length) add('info', 'Stok Bahan Baku', `${ignored.length} bahan kini dipantau di Persediaan`, 'Catatan stok lamanya di Stok Bahan Baku tidak dipakai lagi; catat opname bahan ini di Kontrol Persediaan: ' + ignored.slice(0, 5).map(s => s.code).join(', '));
+    // Neraca Awal: persediaan (Rp) vs nilai stok awal bahan pada tanggal mulai
+    if (opening && opening.date && n(opening.persediaan) > 0 && (D.entries || []).some(e => e.kind === 'awal' && e.date <= opening.date)) {
+      const startVal = inventoryValue({ ...D, transactions: [], expenses: (X || []).filter(x => x.date <= opening.date) }, opening.date).bahan;
+      const diff = startVal - n(opening.persediaan);
+      if (startVal > 0 && Math.abs(diff) / n(opening.persediaan) > 0.1)
+        add('info', 'Neraca Awal', 'Persediaan di Neraca Awal berbeda dengan stok awal bahan', `Neraca Awal Rp${Math.round(n(opening.persediaan)).toLocaleString('id-ID')} vs stok awal di Stok Bahan Baku Rp${Math.round(startVal).toLocaleString('id-ID')}. Samakan agar HPP bulan pertama akurat.`);
+    }
+  }
+  return out;
+}

@@ -14,9 +14,11 @@ Kode bahan = SKU item Persediaan ──► dipantau di Kontrol Persediaan ("Baha
 4. Opsional: **HPP Menu → Isi harga modal produk** agar laporan laba memakai HPP resep.
 
 ## Sehari-hari
-- **Belanja bahan**: Pengeluaran → Tambah → jenis Belanja Bahan → isi **Kode bahan** (ketik B0… dan pilih). Nama, satuan, dan harga terisi otomatis; stok bertambah saat disimpan.
+- **Belanja bahan**: Pengeluaran → Tambah → jenis Bahan baku (atau Operasional) → pilih **Kode bahan** dari dropdown. Item, satuan, harga, dan nominal terisi otomatis; stok bertambah saat disimpan.
 - **Penjualan**: tidak perlu apa-apa — stok bahan berkurang sesuai resep.
 - **Akhir hari/minggu**: Catat → **Stok opname** dengan hasil hitung fisik; selisihnya tercatat otomatis.
+- **Akhir bulan**: Pembukuan → Ringkasan → Persediaan akhir → tekan **Pakai Rp…** (nilai bahan baku + produk jadi), sesuaikan dengan opname, lalu Simpan. Ini membuat HPP aktual mencerminkan bahan yang benar-benar terpakai.
+- **Berkala**: Pengaturan → **Pemeriksaan data** untuk mendeteksi resep/kode bahan/harga modal yang tidak cocok.
 - **Rusak/terbuang**: Catat → Rusak.
 - Filter **Perlu belanja** menampilkan bahan menipis/habis (isi *Stok minimum* di Edit bahan).
 

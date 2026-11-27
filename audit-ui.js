@@ -2,7 +2,8 @@
 import { all, put, del } from './db.js';
 import { auditData } from './audit.js';
 import { balanceAt, itemLinks } from './persediaan-logic.js';
-import { localToday, remainOf } from './pembukuan-logic.js';
+import { localToday, remainOf, groupOf, normOpening } from './pembukuan-logic.js';
+import { auditBahan } from './bahan-logic.js';
 
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -15,6 +16,13 @@ export async function runAudit() {
   const d = await window.bookData();
   d.invItems = await all('invItems'); d.invEntries = await all('invEntries');
   const list = auditData(d, localToday());
+  // Stok Bahan Baku & HPP Menu (lintas Pengeluaran, Kasir, Persediaan, Neraca Awal)
+  try {
+    const [materials, menus, entries] = await Promise.all(['materials', 'hppMenus', 'materialEntries'].map(s => all(s)));
+    list.push(...auditBahan({ materials, menus, entries, products: d.products, transactions: d.transactions, expenses: d.expenses, invItems: d.invItems, invEntries: d.invEntries },
+      { today: localToday(), groupOf: x => groupOf(x, d.groups || {}), opening: normOpening(d.opening || {}) }));
+  } catch (err) { console.warn('Pemeriksaan bahan gagal', err); }
+  list.sort((a, b) => ({ error: 0, warn: 1, info: 2 }[a.level] - { error: 0, warn: 1, info: 2 }[b.level]));
   const box = $('auditResult');
   const lvl = { error: ['Perlu diperbaiki', 'bad'], warn: ['Perhatian', 'mid'], info: ['Info', ''] };
   const fixes = [...new Set(list.map(i => i.fix).filter(Boolean))];

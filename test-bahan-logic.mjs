@@ -1,7 +1,7 @@
 // Uji Stok Bahan Baku & HPP Menu. Jalankan: node test-bahan-logic.mjs
 import { readFileSync } from 'node:fs';
 import { readXlsx } from './xlsx-read.js';
-import { parseHppWorkbook, mergeImport, menuCost, menuStatus, unitCost, stockSummary, movements, runBalance, productionMenus, invItemForMaterial, normCode, invQtyFromExpense, invEntriesFromExpenses } from './bahan-logic.js';
+import { parseHppWorkbook, mergeImport, menuCost, menuStatus, unitCost, stockSummary, movements, runBalance, productionMenus, invItemForMaterial, normCode, invQtyFromExpense, invEntriesFromExpenses, inventoryValue, auditBahan } from './bahan-logic.js';
 
 let pass = 0, fail = 0;
 const ok = (c, name) => { if (c) pass++; else { fail++; console.log('GAGAL:', name); } };
@@ -146,6 +146,64 @@ ok(!productionMenus(menus2, prods2, invItems).has('ms'), 'item Persediaan untuk 
   const S = stockSummary({ materials: [{ id: 'k', code: 'B038', name: 'Daging', buyUnit: 'kg', buyPrice: 135000, perBuy: 1000, stockUnit: 'g' }], menus: [], products: [], transactions: [], expenses: [], entries: [],
     invItems: [{ id: 'I1', sku: 'B038', unit: 'kg', hasDepan: false }], invEntries: [{ id: 'z', itemId: 'I1', area: 'dapur', kind: 'masuk', qty: 2, date: '2026-11-01' }] }, '2026-11-01', '2026-11-30')[0];
   eq([S.close, S.unit, S.value], [2, 'kg', 270000], 'bahan di Persediaan (kg): sisa 2 kg bernilai Rp270.000');
+}
+
+// ---------- nilai persediaan untuk Pembukuan (tanpa dobel hitung) ----------
+{
+  const D = {
+    materials: [{ id: 'm1', code: 'B1', name: 'Daging', buyUnit: 'kg', buyPrice: 100000, perBuy: 1000, stockUnit: 'g' }],
+    menus: [{ id: 'M1', code: 'M01', sku: 'M01', name: 'Rendang', portions: 10, items: [{ code: 'B1', qty: 1000 }] },
+            { id: 'M2', code: 'M02', sku: 'M02', name: 'Gulai', portions: 10, items: [{ code: 'B1', qty: 500 }] }],
+    products: [{ id: 'P1', sku: 'M01', name: 'Rendang', stock: 5, costPrice: 10000 },   // resep dipotong per penjualan -> tidak dinilai
+               { id: 'P2', sku: 'M02', name: 'Gulai', stock: 4, costPrice: 5000, invItemId: 'I2' }, // dipotong saat produksi -> dinilai
+               { id: 'P3', sku: 'X1', name: 'Kerupuk', stock: 10, costPrice: 1000 },       // tanpa resep -> dinilai
+               { id: 'P4', sku: 'X2', name: 'Es teh', stock: null, costPrice: 2000 }],
+    transactions: [], expenses: [{ id: 'e1', date: '2026-11-02', materialCode: 'B1', qty: 2, amount: 200000 }], entries: [],
+    invItems: [{ id: 'I2', name: 'Gulai porsi', sku: 'M02', hasDepan: true, links: [{ productId: 'P2', mult: 1 }] }], invEntries: []
+  };
+  const v = inventoryValue(D, '2026-11-30');
+  eq(v.bahan, 200000, 'nilai bahan akhir bulan = 2000 g × Rp100/g');
+  eq(v.dikecualikan, 50000, 'produk ber-resep per penjualan tidak dinilai (bahannya masih di stok)');
+  eq(v.produk, 30000, 'dinilai: Gulai (dipotong saat produksi) 4×5.000 + Kerupuk (tanpa resep) 10×1.000');
+  eq(v.total, v.bahan + v.produk, 'total = bahan + produk');
+  eq(inventoryValue(D, '2026-11-01').bahan, 0, 'sebelum belanja: nilai bahan 0');
+}
+
+// ---------- pemeriksaan data bahan & HPP ----------
+{
+  const base = {
+    materials: [{ id: 'a', code: 'B1', name: 'Daging', buyUnit: 'kg', buyPrice: 100000, perBuy: 1000, stockUnit: 'g' },
+                { id: 'b', code: 'B2', name: 'Cabai', buyUnit: 'kg', buyPrice: 0, perBuy: 1000, stockUnit: 'g' }],
+    menus: [{ id: 'M1', code: 'M01', name: 'Rendang', batch: 10, items: [{ code: 'B1', qty: 1000 }, { code: 'B2', qty: 100 }, { code: 'B9', qty: 5 }] },
+            { id: 'M2', code: 'M02', name: 'Sayur', batch: 1, items: [{ code: 'B1', qty: 10 }] }],
+    products: [{ id: 'P1', sku: 'M01', name: 'Rendang', price: 30000, costPrice: 5000 }],
+    transactions: [{ id: 't', date: '2026-11-03', items: [{ productId: 'P1', sku: 'M01', qty: 20 }] }],
+    expenses: [{ id: 'x1', date: '2026-11-02', type: 'Gaji', materialCode: 'B1', qty: 1, amount: 100000 }, { id: 'x2', date: '2026-11-02', type: 'Bahan baku', materialCode: 'B7', qty: 1, amount: 1 }],
+    entries: [], invItems: [], invEntries: []
+  };
+  const A = auditBahan(base, { today: '2026-11-30', groupOf: x => (x.type === 'Gaji' ? 'gaji' : 'bahan') });
+  const has = (lvl, re) => A.some(a => a.level === lvl && re.test(a.title));
+  ok(has('error', /kode bahan yang tidak ada/), 'audit: resep memakai kode bahan tak dikenal (B9)');
+  ok(has('warn', /belum ada harganya/), 'audit: bahan resep tanpa harga (B2)');
+  ok(has('warn', /belum terhubung ke produk kasir/), 'audit: menu M02 tanpa produk kasir');
+  ok(has('warn', /harga modal berbeda/), 'audit: harga modal produk ≠ HPP resep');
+  ok(has('warn', /kode bahan yang sudah tidak ada/), 'audit: belanja berkode B7 yang tidak terdaftar');
+  ok(has('warn', /beban di luar HPP/), 'audit: belanja berkode bahan bertipe Gaji');
+  ok(has('warn', /stoknya minus/), 'audit: stok bahan minus (terjual 20 porsi, belanja 1 kg)');
+  const dup = auditBahan({ ...base, materials: [...base.materials, { id: 'c', code: 'b1', name: 'Daging 2', perBuy: 1, stockUnit: 'g' }] }, { today: '2026-11-30' });
+  ok(dup.some(a => a.level === 'error' && /Kode bahan ganda: B1/.test(a.title)), 'audit: kode bahan ganda (huruf besar/kecil)');
+  const clean = auditBahan({ materials: [base.materials[0]], menus: [{ id: 'M1', code: 'M01', batch: 10, items: [{ code: 'B1', qty: 1000 }] }],
+    products: [{ id: 'P1', sku: 'M01', costPrice: 10000 }], transactions: [], expenses: [{ id: 'y', date: '2026-11-01', type: 'Bahan baku', materialCode: 'B1', qty: 1, amount: 100000 }], entries: [], invItems: [], invEntries: [] },
+    { today: '2026-11-30', groupOf: () => 'bahan' });
+  eq(clean, [], 'audit: data rapi -> tidak ada temuan');
+  const op = auditBahan({ ...base, entries: [{ id: 'e', code: 'B1', kind: 'awal', qty: 5000, date: '2026-11-01' }] }, { today: '2026-11-30', opening: { date: '2026-11-01', persediaan: 100000 } });
+  ok(op.some(a => /Neraca Awal berbeda/.test(a.title)), 'audit: persediaan Neraca Awal ≠ nilai stok awal bahan (Rp500.000 vs Rp100.000)');
+}
+
+{
+  const A = auditBahan({ materials: [{ id: 'a', code: 'B1', name: 'Daging', buyUnit: 'kg', buyPrice: 1, perBuy: 1, stockUnit: 'kg' }], menus: [], products: [], transactions: [], expenses: [], entries: [], invItems: [{ id: 'I', sku: 'B1' }],
+    invEntries: [{ id: 'exp-1', itemId: 'I', area: 'dapur', kind: 'masuk', qty: 2, date: '2026-11-05', source: 'pengeluaran' }, { id: 'm', itemId: 'I', area: 'dapur', kind: 'masuk', qty: 2, date: '2026-11-05' }] }, { today: '2026-11-30' });
+  ok(A.some(a => /dua kali/.test(a.title)), 'audit: Bahan masuk manual kembar dengan belanja otomatis');
 }
 
 console.log(`test-bahan-logic: ${pass} lulus, ${fail} gagal`);

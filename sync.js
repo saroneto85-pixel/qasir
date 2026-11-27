@@ -4,6 +4,7 @@ import { App } from '@capacitor/app';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { isNative, initDatabase, nativeConnection, installSyncLayer, setSyncGate, STORE_NAMES } from './db.js';
 import { createSyncEngine, SV } from './sync-engine.js';
+import { setPermKeys } from './permissions.js';
 
 export const LanSync = isNative ? registerPlugin('LanSync') : null;
 
@@ -21,6 +22,9 @@ export const syncState = () => lastState;
 
 function publish(s) {
   lastState = { ...s, available: true };
+  // Izin menu/fitur: perangkat tambahan mengikuti izin dari Perangkat Utama; lainnya akses penuh.
+  if (s.mode === 'client') { if (s.perms) setPermKeys(s.perms); }
+  else if (s.started) setPermKeys(null);
   for (const fn of listeners) { try { fn(lastState); } catch (e) { console.warn(e); } }
 }
 
@@ -79,5 +83,6 @@ if (isNative) setSyncGate(boot().catch(e => console.error('Sinkronisasi tidak te
 window.kasirSync = {
   deviceCode: () => (lastState.mode === 'client' ? (lastState.native?.deviceCode || '') : ''),
   active: () => lastState.mode === 'server' || lastState.mode === 'client',
+  perms: () => lastState.perms || null,
   state: () => lastState
 };
