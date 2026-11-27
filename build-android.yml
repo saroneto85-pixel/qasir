@@ -1,0 +1,84 @@
+name: Build Kasir DBL Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-24.04
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          # Satu baris, dipisah spasi: action terbaru tidak memecah daftar per baris.
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install npm dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Check JavaScript syntax
+        run: for f in app.js db.js persediaan.js persediaan-logic.js pembukuan.js pembukuan-logic.js xlsx.js receipt.js receipt-ui.js audit.js audit-ui.js resto-logic.js sync.js sync-engine.js sync-ui.js; do node --check $f; done && node test-receipt.mjs && node test-audit.mjs && node test-resto-logic.mjs && node test-persediaan-logic.mjs && node test-pembukuan-logic.mjs
+
+      - name: Test sinkronisasi antar perangkat (inti Java + uji multi-perangkat)
+        run: sh android-native/test/run-tests.sh && node test-sync-e2e.mjs
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Sync Capacitor plugins and assets
+        run: npx cap sync android
+
+      - name: Apply application branding assets (ikon KASIR, menggantikan ikon robot bawaan)
+        run: python3 android-native/apply_branding.py
+
+      - name: Install native plugins (Bluetooth SPP, kontak, sinkronisasi LAN)
+        run: |
+          mkdir -p android/app/src/main/java/id/kasmini/pos
+          cp -r android-native/src/main/java/id/kasmini/pos/. android/app/src/main/java/id/kasmini/pos/
+          python3 android-native/patch_manifest.py
+          python3 android-native/patch_lan_sync.py
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          # Ulangi bila unduhan dependensi ditolak sementara (HTTP 429 / jaringan)
+          for i in 1 2 3; do
+            ./gradlew --no-daemon assembleDebug && exit 0
+            echo "Percobaan $i gagal; mencoba lagi dalam 60 detik..."; sleep 60
+          done
+          exit 1
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: kasir-dbl-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
