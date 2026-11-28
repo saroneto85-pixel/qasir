@@ -462,3 +462,43 @@ body.lic-joining .bottom-transaction,body.lic-joining #backBtn{display:none!impo
 .lic-wa-note{text-align:center;margin:6px 0 4px}
 .about-wa{width:100%;margin:6px 0 8px;background:#25d366;border-color:#1ebe5a;color:#fff}
 .lic-dev a{white-space:nowrap}
+
+/* ---- QRIS & rekening pembayaran (2.15) ---- */
+.payqr-bar{margin:4px 0 8px}.payqr-bar small{display:block;text-align:center;margin-top:4px}
+.btn-qris{display:block;width:100%;min-height:46px;border-radius:12px;border:2px solid #d0103a;background:#fff;color:#b1002b;font-weight:700;font-size:15px;cursor:pointer}
+.payqr-debt{margin:0 0 10px}
+.payqr-screen{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;border-radius:0;background:#fff;color:#111;overflow:auto;padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));box-sizing:border-box}
+.payqr-screen:not([open]){display:none}
+.payqr-screen::backdrop{background:#fff}
+body.payqr-open{overflow:hidden}body.payqr-open .bottom-transaction{display:none!important}
+.payqr-inner{max-width:980px;margin:0 auto;display:flex;flex-direction:column;min-height:100%;gap:12px}
+.payqr-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:1px solid #e6e6e6;padding-bottom:10px}
+.payqr-top small{display:block;color:#666;font-size:13px}.payqr-top b{font-size:18px}
+.payqr-total{text-align:right}.payqr-total strong{display:block;font-size:clamp(28px,8vw,46px);line-height:1.05;color:#0d6b47;letter-spacing:-.01em}
+.payqr-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.payqr-tabs button{flex:0 0 auto;border:1px solid #cfd8d2;background:#fff;border-radius:999px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer;color:inherit}
+.payqr-tabs button.on{background:#0d6b47;border-color:#0d6b47;color:#fff}
+.payqr-body{display:flex;flex-direction:column;align-items:center;gap:12px;flex:1}
+.payqr-img{display:block;width:min(92vw,520px);max-height:62vh;object-fit:contain;background:#fff;border-radius:12px;image-rendering:auto}
+.payqr-noimg{width:min(70vw,280px);aspect-ratio:1;display:grid;place-items:center;border:2px dashed #ccc;border-radius:16px;color:#888;font-size:20px}
+.payqr-info{text-align:center;max-width:520px}.payqr-info p{margin:4px 0}
+.payqr-label{font-size:18px;font-weight:700}
+.payqr-num{font-size:22px;font-weight:700;letter-spacing:.04em;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+.payqr-num button{font-size:14px;letter-spacing:0;padding:6px 12px}
+.payqr-how{font-size:15px;color:#333}
+.payqr-actions{display:grid;grid-template-columns:1fr 2fr;gap:10px;position:sticky;bottom:0;background:#fff;padding-top:8px}
+.payqr-actions button{min-height:52px;font-size:16px;border-radius:12px}
+.payqr-ok{background:#0d6b47;border-color:#0d6b47;color:#fff;font-weight:700}
+.payqr-check{text-align:center;color:#8a5a00;font-size:13px;margin:0}
+@media (min-width:760px) and (orientation:landscape){.payqr-body{flex-direction:row;justify-content:center;align-items:center}.payqr-img{width:min(46vw,520px);max-height:66vh}.payqr-info{text-align:left}.payqr-num{justify-content:flex-start}}
+.payacc-list{display:grid;gap:8px;margin-top:8px}
+.payacc-row{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line,#dfe7e1);border-radius:12px;padding:8px}
+.payacc-row.off{opacity:.6}
+.payacc-row img,.payacc-noimg{width:56px;height:56px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid #eee}
+.payacc-noimg{display:grid;place-items:center;font-size:10px;color:#777;text-align:center}
+.payacc-row small{display:block;color:var(--muted,#5b6b62);font-size:12px}
+.payacc-act{display:flex;flex-direction:column;gap:6px}.payacc-act button{padding:6px 10px;font-size:13px}
+.pa-img img{display:block;max-width:220px;max-height:220px;object-fit:contain;margin:6px 0;border:1px solid #eee;border-radius:8px;background:#fff}
+.pa-methods{border:1px solid var(--line,#dfe7e1);border-radius:12px;padding:8px 12px;margin:8px 0;display:flex;flex-wrap:wrap;gap:4px 16px}
+.pa-methods legend{font-size:13px;color:var(--muted,#5b6b62);padding:0 4px}
+#payAccDialog .err{color:#b42318;background:#fff1f0;border-radius:10px;padding:8px 10px}

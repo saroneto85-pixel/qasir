@@ -126,7 +126,7 @@ export function applyPerms() {
     const need = SETTINGS_SECTIONS[h];
     if (need) div.hidden = !P.has(need);
   });
-  for (const id of ['receiptSettings', 'auditPanel']) { const el = document.getElementById(id); if (el) el.hidden = !P.has('settings'); }
+  for (const id of ['receiptSettings', 'auditPanel', 'payAccPanel']) { const el = document.getElementById(id); if (el) el.hidden = !P.has('settings'); }
   for (const id of DATA_BUTTONS) { const el = document.getElementById(id); if (el) el.hidden = !P.has('data'); }
   const restore = document.getElementById('restoreFile')?.closest('label');
   if (restore) restore.hidden = !P.has('data');
