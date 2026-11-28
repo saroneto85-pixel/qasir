@@ -73,6 +73,8 @@ class LanSyncPlugin : Plugin() {
             o.put("latest", core.latest())
             o.put("records", core.countLive())
             o.put("devices", core.devicesJson())
+            o.put("deviceLimit", core.deviceLimit())
+            o.put("planName", id.kasmini.pos.license.LicenseStore.planName(context))
         } else {
             o.put("storeId", r.linkedStoreId)
             o.put("storeName", r.linkedStoreName)
@@ -117,6 +119,8 @@ class LanSyncPlugin : Plugin() {
         val mode = call.getString("mode") ?: SyncRepository.MODE_STANDALONE
         if (mode !in listOf(SyncRepository.MODE_STANDALONE, SyncRepository.MODE_SERVER, SyncRepository.MODE_CLIENT))
             throw IllegalArgumentException("Mode tidak dikenal")
+        if (mode == SyncRepository.MODE_SERVER && !id.kasmini.pos.license.LicenseStore.valid(context))
+            throw IllegalStateException("Aktifkan lisensi dulu untuk menjadikan perangkat ini Perangkat Utama")
         if (mode != SyncRepository.MODE_SERVER && LanSyncService.running) LanSyncService.stop(context)
         if (mode == SyncRepository.MODE_STANDALONE) SyncRepository.forgetLink()
         if (mode == SyncRepository.MODE_SERVER) SyncRepository.deviceCode = ""
@@ -141,6 +145,7 @@ class LanSyncPlugin : Plugin() {
 
     private fun doStartServer(call: PluginCall) = exec(call) {
         if (SyncRepository.mode != SyncRepository.MODE_SERVER) throw IllegalStateException("Perangkat ini belum dijadikan Perangkat Utama")
+        if (!id.kasmini.pos.license.LicenseStore.valid(context)) throw IllegalStateException("Lisensi belum aktif: server sinkronisasi tidak dijalankan")
         SyncRepository.serverAutoStart = true
         if (!LanSyncService.running) {
             LanSyncService.start(context)

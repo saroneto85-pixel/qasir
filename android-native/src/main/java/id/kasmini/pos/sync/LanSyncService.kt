@@ -80,6 +80,11 @@ class LanSyncService : Service() {
     }
 
     private fun startServer() {
+        if (!id.kasmini.pos.license.LicenseStore.valid(this)) {
+            lastError = "Lisensi belum aktif"
+            stopSelf()
+            return
+        }
         try {
             val core = SyncRepository.core()
             core.pruneHistory()

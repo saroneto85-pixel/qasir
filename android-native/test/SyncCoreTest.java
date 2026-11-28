@@ -29,6 +29,7 @@ public class SyncCoreTest {
         mergeRules();
         core();
         perms();
+        deviceLimit();
         System.out.println("SyncCoreTest: " + pass + " lulus, " + fail + " gagal");
         if (fail > 0) System.exit(1);
     }
@@ -217,6 +218,33 @@ public class SyncCoreTest {
     }
 
     @SuppressWarnings("unchecked")
+    static void deviceLimit() throws Exception {
+        MemorySyncStore st = new MemorySyncStore();
+        SyncCore core = new SyncCore(st);
+        core.seed("{\"records\":[]}", true);
+        int[] limit = { 2 };
+        core.setDeviceLimit(() -> limit[0], () -> "Toko");
+        String body = "{\"code\":\"" + core.pairCode() + "\",\"deviceId\":\"%s\"}";
+        core.pair(String.format(body, "d1"));
+        core.pair(String.format(body, "d2"));
+        int status = 0; String msg = "";
+        try { core.pair(String.format(body, "d3")); } catch (SyncCore.HttpError e) { status = e.status; msg = e.getMessage(); }
+        ok(status == 403 && msg.contains("Toko") && msg.contains("2 perangkat"), "paket Toko: perangkat ke-3 ditolak (" + msg + ")");
+        Map<String, Object> again = M(core.pair(String.format(body, "d2")));
+        ok(again.get("token") != null, "perangkat lama boleh pairing ulang walau jatah penuh");
+        String tok = null;
+        for (id.kasmini.pos.sync.SyncStore.Device d : st.devices()) if ("d1".equals(d.deviceId)) tok = d.token;
+        core.revoke(tok);
+        ok(M(core.pair(String.format(body, "d3"))).get("token") != null, "setelah satu dicabut, perangkat baru bisa masuk");
+        limit[0] = 0;
+        status = 0;
+        try { core.pair(String.format(body, "d9")); } catch (SyncCore.HttpError e) { status = e.status; msg = e.getMessage(); }
+        ok(status == 403 && msg.contains("hanya untuk 1 perangkat"), "paket Basic: tidak bisa menambah perangkat (" + msg + ")");
+        limit[0] = -1;
+        for (int i = 0; i < 8; i++) core.pair(String.format(body, "x" + i));
+        ok(core.activeDevices() == 10, "paket Pemilik: tanpa batas");
+    }
+
     static void perms() throws Exception {
         SyncPerms kasir = SyncPerms.preset("kasir");
         ok(kasir.canRead("transactions") && kasir.canRead("products") && kasir.canRead("receivables"), "izin kasir: tabel inti terbaca");

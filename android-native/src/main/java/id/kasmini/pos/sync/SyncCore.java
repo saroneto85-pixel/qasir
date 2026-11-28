@@ -51,6 +51,16 @@ public final class SyncCore {
     }
 
     public void setListener(Listener l) { this.listener = l; }
+
+    // Batas perangkat tambahan dari paket lisensi Perangkat Utama (-1 = tanpa batas).
+    private volatile java.util.function.IntSupplier deviceLimit = () -> -1;
+    private volatile java.util.function.Supplier<String> planName = () -> "";
+    public void setDeviceLimit(java.util.function.IntSupplier limit, java.util.function.Supplier<String> plan) {
+        this.deviceLimit = limit == null ? () -> -1 : limit;
+        this.planName = plan == null ? () -> "" : plan;
+    }
+    public int deviceLimit() { return deviceLimit.getAsInt(); }
+    public int activeDevices() { int n = 0; for (SyncStore.Device d : st.devices()) if (!d.revoked) n++; return n; }
     public long latest() { return lastRev; }
     public String storeId() { String s = st.meta("storeId"); return s == null ? "" : s; }
     public String storeName() { String s = st.meta("storeName"); return s == null ? "" : s; }
@@ -357,6 +367,17 @@ public final class SyncCore {
             }
         }
         synchronized (lock) {
+            int limit = deviceLimit.getAsInt();
+            if (limit >= 0) {
+                int others = 0;
+                for (SyncStore.Device x : st.devices()) if (!x.revoked && !deviceId.equals(x.deviceId)) others++;
+                if (others >= limit) {
+                    String p = planName.get();
+                    throw new HttpError(403, limit == 0
+                            ? "Paket " + (p.isEmpty() ? "lisensi" : p) + " hanya untuk 1 perangkat. Tingkatkan paket untuk menambah perangkat."
+                            : "Jatah perangkat tambahan paket " + (p.isEmpty() ? "lisensi" : p) + " sudah penuh (" + limit + " perangkat). Cabut perangkat lama di Perangkat Utama atau tingkatkan paket.");
+                }
+            }
             SyncStore.Device d = st.deviceById(deviceId);
             if (d != null) st.deleteDevice(d.token);
             else {

@@ -48,6 +48,7 @@ object SyncRepository {
             coreRef?.let { return it }
             val c = SyncCore(RoomSyncStore(SyncDatabase.get(context())))
             c.setListener { rev -> latest.value = rev }
+            c.setDeviceLimit({ id.kasmini.pos.license.LicenseStore.extraDevices(context()) }, { id.kasmini.pos.license.LicenseStore.planName(context()) })
             latest.value = c.latest()
             coreRef = c
             return c
