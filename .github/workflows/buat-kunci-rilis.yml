@@ -1,0 +1,82 @@
+name: Buat kunci rilis (SEKALI SAJA)
+
+# Jalankan manual sekali: Actions -> "Buat kunci rilis (SEKALI SAJA)" -> Run workflow.
+# Syarat: secret KASIR_KEYSTORE_PASSWORD sudah diisi (kata sandi kuat, minimal 16 karakter).
+# Hasil: kunci/kasir-release.p12.enc di repo — keystore rilis yang terenkripsi AES-256 dengan kata sandi tersebut.
+# Cadangan = file .enc itu + kata sandinya. Lihat PANDUAN-KUNCI-RILIS-DAN-LISENSI.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pemilik:
+        description: 'Nama pemilik / usaha (dicantumkan di sertifikat)'
+        required: true
+        default: 'KASIR DBL'
+
+permissions:
+  contents: write
+
+jobs:
+  buat:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Periksa syarat
+        env:
+          KS_PASS: ${{ secrets.KASIR_KEYSTORE_PASSWORD }}
+          KS_EXIST: ${{ secrets.KASIR_KEYSTORE_BASE64 != '' }}
+        run: |
+          if [ -f kunci/kasir-release.p12.enc ] || [ "$KS_EXIST" = "true" ]; then
+            echo "::error::Kunci rilis SUDAH ADA. Kunci tidak boleh dibuat ulang (APK yang sudah terpasang tidak akan bisa diperbarui). Workflow dihentikan."
+            exit 1
+          fi
+          if [ ${#KS_PASS} -lt 16 ]; then
+            echo "::error::Isi secret KASIR_KEYSTORE_PASSWORD dulu (minimal 16 karakter: campur huruf besar, kecil, angka)."
+            exit 1
+          fi
+
+      - name: Buat keystore (RSA 4096, berlaku 100 tahun) dan enkripsi
+        env:
+          KS_PASS: ${{ secrets.KASIR_KEYSTORE_PASSWORD }}
+          OWNER: ${{ github.event.inputs.pemilik }}
+        run: |
+          CN=$(printf '%s' "$OWNER" | tr -cd 'A-Za-z0-9 ._-' | cut -c1-60)
+          keytool -genkeypair -alias kasir -keyalg RSA -keysize 4096 -validity 36500 \
+            -storetype pkcs12 -keystore "$RUNNER_TEMP/k.p12" \
+            -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=${CN:-KASIR DBL}, O=${CN:-KASIR DBL}, C=ID"
+          mkdir -p kunci
+          openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$RUNNER_TEMP/k.p12" -out kunci/kasir-release.p12.enc -pass env:KS_PASS
+          # uji buka kembali sebelum disimpan
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in kunci/kasir-release.p12.enc -pass env:KS_PASS | cmp - "$RUNNER_TEMP/k.p12"
+          FP=$(keytool -exportcert -alias kasir -keystore "$RUNNER_TEMP/k.p12" -storetype pkcs12 -storepass "$KS_PASS" | sha256sum | cut -d' ' -f1)
+          rm -f "$RUNNER_TEMP/k.p12"
+          cat > kunci/BACA-SAYA.md <<TXT
+          # Kunci rilis KASIR DBL
+
+          - \`kasir-release.p12.enc\` = keystore rilis (alias \`kasir\`, PKCS12), **terenkripsi** AES-256 (openssl, PBKDF2 600.000).
+          - Dibuka saat build dengan secret \`KASIR_KEYSTORE_PASSWORD\`. Tanpa kata sandi itu file ini tidak berguna.
+          - Sidik jari SHA-256 sertifikat: \`$FP\`
+          - Dibuat: $(date -u +%Y-%m-%d)
+
+          **Cadangan wajib:** unduh \`kasir-release.p12.enc\` (tombol Download raw file) + catat kata sandinya,
+          simpan di 2 tempat. JANGAN hapus atau ganti file ini.
+          TXT
+          sed -i 's/^          //' kunci/BACA-SAYA.md
+          echo "Sidik jari sertifikat: $FP" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Simpan ke repo
+        run: |
+          git config user.name "kasir-update-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kunci/kasir-release.p12.enc kunci/BACA-SAYA.md
+          git commit -m "Kunci rilis KASIR (terenkripsi)"
+          git push
+          echo "Kunci rilis tersimpan di **kunci/kasir-release.p12.enc**. Unduh file itu sebagai cadangan." >> "$GITHUB_STEP_SUMMARY"

@@ -1,16 +1,21 @@
-name: Build Kasir DBL Android APK
+name: Build Kasir DBL Android (APK + AAB)
 
 on:
   workflow_dispatch:
   push:
     branches: [main, master]
+    # Zip update yang baru diunggah diproses dulu oleh workflow "Terapkan paket update" (yang lalu memicu build ini).
+    paths-ignore:
+      - 'KASIR_UPDATE_*.zip'
+      - 'KASIR_SOURCE_*.zip'
+      - 'update/**'
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build APK + AAB
     runs-on: ubuntu-24.04
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -29,6 +34,37 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Siapkan kunci rilis (dari GitHub Secrets)
+        env:
+          KS_B64: ${{ secrets.KASIR_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KASIR_KEYSTORE_PASSWORD }}
+        run: |
+          # Sumber kunci: (1) secret KASIR_KEYSTORE_BASE64, atau (2) kunci/kasir-release.p12.enc di repo
+          # (terenkripsi AES-256, dibuat workflow "Buat kunci rilis"), dibuka dengan KASIR_KEYSTORE_PASSWORD.
+          if [ -n "$KS_PASS" ] && [ -z "$KS_B64" ] && [ -f kunci/kasir-release.p12.enc ]; then
+            if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in kunci/kasir-release.p12.enc -out "$RUNNER_TEMP/kasir-release.p12" -pass env:KS_PASS 2>/dev/null; then
+              echo "::error::kunci/kasir-release.p12.enc tidak bisa dibuka. Secret KASIR_KEYSTORE_PASSWORD harus sama persis dengan saat kunci dibuat."
+              exit 1
+            fi
+            KS_B64=1
+          elif [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/kasir-release.p12"
+          fi
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            if ! keytool -list -keystore "$RUNNER_TEMP/kasir-release.p12" -storetype pkcs12 -storepass "$KS_PASS" -alias kasir >/dev/null 2>&1; then
+              echo "::error::Keystore atau kata sandinya tidak cocok. Periksa secret KASIR_KEYSTORE_BASE64 dan KASIR_KEYSTORE_PASSWORD."
+              exit 1
+            fi
+            FP=$(keytool -exportcert -alias kasir -keystore "$RUNNER_TEMP/kasir-release.p12" -storetype pkcs12 -storepass "$KS_PASS" | sha256sum | cut -d' ' -f1)
+            echo "KASIR_KEYSTORE_FILE=$RUNNER_TEMP/kasir-release.p12" >> "$GITHUB_ENV"
+            echo "KASIR_CERT_SHA256=$FP" >> "$GITHUB_ENV"
+            echo "KASIR_BUILD=release" >> "$GITHUB_ENV"
+            echo "APK RILIS — sidik jari sertifikat: $FP"
+          else
+            echo "::warning::Kunci rilis belum dibuat (jalankan workflow 'Buat kunci rilis'): membangun APK DEBUG (tanda tangan berubah setiap build, tidak untuk dijual). Lihat PANDUAN-KUNCI-RILIS-DAN-LISENSI.md"
+            echo "KASIR_BUILD=debug" >> "$GITHUB_ENV"
+          fi
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -43,7 +79,7 @@ jobs:
         run: npm run build && node check-build.mjs dist "hasil build web"
 
       - name: Check JavaScript syntax
-        run: for f in app.js db.js persediaan.js persediaan-logic.js pembukuan.js pembukuan-logic.js xlsx.js receipt.js receipt-ui.js audit.js audit-ui.js resto-logic.js sync.js sync-engine.js sync-ui.js bahan.js bahan-logic.js xlsx-read.js version.js check-build.mjs; do node --check $f; done && node test-receipt.mjs && node test-audit.mjs && node test-resto-logic.mjs && node test-persediaan-logic.mjs && node test-pembukuan-logic.mjs && node test-bahan-logic.mjs && node test-version.mjs
+        run: for f in app.js db.js persediaan.js persediaan-logic.js pembukuan.js pembukuan-logic.js xlsx.js receipt.js receipt-ui.js audit.js audit-ui.js resto-logic.js sync.js sync-engine.js sync-ui.js bahan.js bahan-logic.js xlsx-read.js version.js permissions.js license.js lisensi/lisensi-core.mjs check-build.mjs; do node --check $f; done && node test-receipt.mjs && node test-audit.mjs && node test-resto-logic.mjs && node test-persediaan-logic.mjs && node test-pembukuan-logic.mjs && node test-bahan-logic.mjs && node test-version.mjs && node test-permissions.mjs && node test-lisensi.mjs
 
       - name: Test sinkronisasi antar perangkat (inti Java + uji multi-perangkat)
         run: sh android-native/test/run-tests.sh && node test-sync-e2e.mjs
@@ -63,22 +99,60 @@ jobs:
           cp -r android-native/src/main/java/id/kasmini/pos/. android/app/src/main/java/id/kasmini/pos/
           python3 android-native/patch_manifest.py
           python3 android-native/patch_lan_sync.py
+          python3 android-native/patch_license.py
 
-      - name: Build APK
+      - name: Build APK + AAB
         working-directory: android
+        env:
+          KASIR_KEYSTORE_PASSWORD: ${{ secrets.KASIR_KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
+          # APK = dipasang/dibagikan langsung. AAB (Android App Bundle) = format unggahan Google Play.
+          if [ "$KASIR_BUILD" = "release" ]; then TASKS="assembleRelease bundleRelease"; else TASKS="assembleDebug bundleDebug"; fi
+          ok=0
           # Ulangi bila unduhan dependensi ditolak sementara (HTTP 429 / jaringan)
           for i in 1 2 3; do
-            ./gradlew --no-daemon assembleDebug && exit 0
+            ./gradlew --no-daemon $TASKS && { ok=1; break; }
             echo "Percobaan $i gagal; mencoba lagi dalam 60 detik..."; sleep 60
           done
-          exit 1
+          [ $ok = 1 ] || exit 1
+          VER=$(node -p "require('../package.json').version")
+          mkdir -p ../apk-out ../aab-out
+          cp app/build/outputs/apk/$KASIR_BUILD/app-$KASIR_BUILD.apk ../apk-out/KASIR-DBL-$VER-$KASIR_BUILD.apk
+          cp app/build/outputs/bundle/$KASIR_BUILD/app-$KASIR_BUILD.aab ../aab-out/KASIR-DBL-$VER-$KASIR_BUILD.aab
+          {
+            echo "## Hasil build KASIR DBL $VER ($KASIR_BUILD)"
+            echo "| Berkas | Ukuran | Untuk |"
+            echo "|---|---|---|"
+            echo "| KASIR-DBL-$VER-$KASIR_BUILD.apk | $(du -h ../apk-out/*.apk | cut -f1) | dipasang langsung / dibagikan ke pembeli |"
+            echo "| KASIR-DBL-$VER-$KASIR_BUILD.aab | $(du -h ../aab-out/*.aab | cut -f1) | diunggah ke Google Play Console |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$KASIR_BUILD" = "release" ]; then
+            APK_FP=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs ../apk-out/*.apk | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+            AAB_FP=$(keytool -printcert -jarfile ../aab-out/*.aab | grep -m1 "SHA256:" | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+            echo "Sidik jari APK: $APK_FP"; echo "Sidik jari AAB: $AAB_FP"; echo "Seharusnya   : $KASIR_CERT_SHA256"
+            if [ "$APK_FP" != "$KASIR_CERT_SHA256" ] || [ "$AAB_FP" != "$KASIR_CERT_SHA256" ]; then
+              echo "::error::APK/AAB tidak ditandatangani dengan kunci rilis KASIR."; exit 1
+            fi
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "APK & AAB ditandatangani kunci rilis (SHA-256 \`$KASIR_CERT_SHA256\`)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "⚠️ Build DEBUG: AAB debug tidak diterima Google Play. Buat kunci rilis dulu (lihat PANDUAN-KUNCI-RILIS-DAN-LISENSI.md)." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v6
         with:
-          name: kasir-dbl-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: kasir-dbl-apk-${{ env.KASIR_BUILD }}
+          path: apk-out/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload AAB (Google Play)
+        uses: actions/upload-artifact@v6
+        with:
+          name: kasir-dbl-aab-${{ env.KASIR_BUILD }}
+          path: aab-out/*.aab
+          if-no-files-found: error
+          retention-days: 30

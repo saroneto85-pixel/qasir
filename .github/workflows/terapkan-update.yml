@@ -1,0 +1,73 @@
+name: Terapkan paket update
+
+# Cara pakai (cukup dari browser, termasuk HP):
+#   github.com -> repo -> Add file -> Upload files -> pilih KASIR_UPDATE_x_x_x.zip -> Commit changes.
+# Workflow ini mengekstrak zip ke folder yang benar, menghapus zip-nya, lalu menjalankan build APK.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'KASIR_UPDATE_*.zip'
+      - 'KASIR_SOURCE_*.zip'
+      - 'update/*.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: terapkan-update
+  cancel-in-progress: false
+
+jobs:
+  terapkan:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Ekstrak paket ke repo
+        id: apply
+        run: |
+          # Pemakaian pertama: skrip penerap belum ada di repo -> ambil dari zip yang diunggah.
+          if [ ! -f .github/scripts/terapkan_update.py ]; then
+            python3 - <<'PY'
+          import glob, zipfile, pathlib
+          for z in sorted(glob.glob("KASIR_*.zip") + glob.glob("update/*.zip")):
+              with zipfile.ZipFile(z) as zf:
+                  for n in zf.namelist():
+                      if n.endswith(".github/scripts/terapkan_update.py"):
+                          p = pathlib.Path(".github/scripts/terapkan_update.py"); p.parent.mkdir(parents=True, exist_ok=True)
+                          p.write_bytes(zf.read(n)); print("Skrip penerap diambil dari", z); raise SystemExit
+          raise SystemExit("::error::Skrip penerap tidak ditemukan di zip. Unggah paket KASIR_UPDATE / KASIR_SOURCE versi 2.14 atau lebih baru.")
+          PY
+          fi
+          python3 .github/scripts/terapkan_update.py .
+
+      - name: Commit perubahan
+        id: commit
+        run: |
+          git config user.name "kasir-update-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan."; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git commit -m "Terapkan paket update KASIR"
+          git push
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Jalankan build APK
+        if: steps.commit.outputs.pushed == 'true' && steps.apply.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build-android.yml --ref "${{ github.ref_name }}"
+          echo "Build APK dimulai — lihat workflow **Build Kasir DBL Android (APK + AAB)** di tab Actions." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Peringatan workflow manual
+        if: steps.apply.outputs.workflows != ''
+        run: |
+          echo "::warning::Berkas workflow di paket berbeda dan harus diperbarui manual: ${{ steps.apply.outputs.workflows }}"
