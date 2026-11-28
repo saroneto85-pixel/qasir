@@ -1,4 +1,1 @@
-# KUNCI PUBLIK LISENSI KASIR DBL
-# Tempel kunci publik dari "Alat Pembuat Kode Aktivasi" (lisensi/pembuat-kode-aktivasi.html) di baris paling bawah,
-# lalu simpan, commit, dan push. Kunci publik BOLEH ada di repo (bukan rahasia).
-# Kunci RAHASIA tidak pernah ditaruh di sini — itu tetap di alat & file cadangan Anda.
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEweGNyKB8K7Tgx+ZEVO5Ov0HZlbQKa5sD4AAOn/Buniapq/APnCzrZiodCJYgyMbyi8mBi3FwdCycqGUU+9ZT2g==
