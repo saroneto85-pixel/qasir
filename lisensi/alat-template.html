@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pembuat Kode Aktivasi KASIR DBL</title>
+<style>
+:root{--g:#1f6b4f;--g2:#eef6f0;--line:#dfe7e1;--txt:#1d2a23;--mut:#5b6b62;--bad:#b42318;--warn:#8a5a00}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--txt);background:#f3f6f4}
+main{max-width:760px;margin:0 auto;padding:18px 16px 40px}
+header{display:flex;align-items:center;gap:12px;margin:4px 0 16px}
+header .ic{width:44px;height:44px;border-radius:12px;background:var(--g);color:#fff;display:grid;place-items:center;font-size:22px;font-weight:700}
+h1{font-size:20px;margin:0}h2{font-size:16px;margin:0 0 10px}header p{margin:0;color:var(--mut);font-size:13px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px}
+label{display:block;font-size:13px;color:var(--mut);margin:0 0 10px}
+input,select,textarea{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid #cfd8d2;border-radius:10px;font:inherit;color:inherit;background:#fff}
+textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
+button{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid #b9c7be;background:#fff;color:inherit;cursor:pointer}
+button.pri{background:var(--g);border-color:var(--g);color:#fff;font-weight:600}button:disabled{opacity:.6;cursor:wait}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.out{background:var(--g2);border:1px dashed #9fcbb0;border-radius:12px;padding:12px;font-size:14px;letter-spacing:.02em;user-select:all}
+.err{color:var(--bad);font-size:13px;margin:6px 0 0}.ok{color:var(--g);font-size:13px;margin:6px 0 0}
+.note{background:#fff8e6;border:1px solid #f0d58c;border-radius:12px;padding:10px 12px;font-size:13px;color:var(--warn);margin:0 0 14px}
+.danger{color:var(--bad);border-color:#e3b4b4}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:600}
+.small{font-size:12px;color:var(--mut)}[hidden]{display:none!important}
+details summary{cursor:pointer;color:var(--mut);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<header><div class="ic">K</div><div><h1>Pembuat Kode Aktivasi KASIR DBL</h1><p>Hanya untuk pemilik aplikasi. Bekerja offline — kunci rahasia tersimpan di browser perangkat ini.</p></div></header>
+
+<div id="noStorage" class="note" hidden>Browser ini tidak mengizinkan penyimpanan lokal. Buka file ini dengan Google Chrome / Microsoft Edge di laptop.</div>
+
+<!-- belum ada kunci -->
+<section id="setup" hidden>
+  <div class="card">
+    <h2>1. Buat kunci lisensi (sekali saja)</h2>
+    <p class="small">Kunci ini dipakai untuk menandatangani semua kode aktivasi. Kunci publiknya ditanam ke aplikasi; kunci rahasianya hanya ada di sini dan di file cadangan terenkripsi Anda.</p>
+    <div class="two"><label>Kata sandi file cadangan (min. 10 karakter)<input id="pw1" type="password" autocomplete="new-password"></label><label>Ulangi kata sandi<input id="pw2" type="password" autocomplete="new-password"></label></div>
+    <button class="pri" id="btnNew">Buat kunci baru &amp; unduh cadangan</button>
+    <p class="err" id="setupErr" hidden></p>
+  </div>
+  <div class="card">
+    <h2>Sudah punya kunci? Pulihkan dari file cadangan</h2>
+    <label>File cadangan (.json)<input id="restoreFile" type="file" accept=".json,application/json"></label>
+    <label>Kata sandi cadangan<input id="restorePw" type="password" autocomplete="current-password"></label>
+    <button id="btnRestore">Pulihkan kunci</button>
+    <p class="err" id="restoreErr" hidden></p>
+  </div>
+</section>
+
+<!-- sudah ada kunci -->
+<section id="main" hidden>
+  <div id="backupWarn" class="note" hidden>Cadangan kunci belum dikonfirmasi tersimpan. Simpan file cadangan di 2 tempat (flashdisk &amp; Google Drive pribadi). Tanpa kunci ini Anda tidak bisa lagi membuat kode yang diterima aplikasi yang sudah beredar. <button id="btnBackedUp">Sudah saya simpan</button></div>
+
+  <div class="card">
+    <h2>Buat kode aktivasi</h2>
+    <label>Kode perangkat (dari pembeli)<input id="dev" class="mono" placeholder="ABCDE-FGHIJ-KLMNO" autocomplete="off" spellcheck="false"></label>
+    <div class="two">
+      <label>Nama toko / pembeli<input id="nm" placeholder="RM Bumbu Lengkep"></label>
+      <label>No. WhatsApp pembeli (opsional)<input id="wa" inputmode="tel" placeholder="0812xxxxxxx"></label>
+    </div>
+    <div class="two">
+      <label>Paket<select id="plan"></select></label>
+      <label>Catatan (opsional)<input id="memo" placeholder="lunas 27/11, transfer BCA"></label>
+    </div>
+    <button class="pri" id="btnMake">Buat kode aktivasi</button>
+    <p class="err" id="makeErr" hidden></p>
+    <div id="result" hidden style="margin-top:12px">
+      <p class="small">Kode aktivasi (seumur hidup, hanya untuk perangkat di atas):</p>
+      <div class="out mono" id="code"></div>
+      <p class="ok" id="selfTest"></p>
+      <div class="row"><button id="btnCopy">Salin kode</button><button class="pri" id="btnWa">Kirim via WhatsApp</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Riwayat lisensi</h2><button id="btnCsv">Unduh CSV</button></div>
+    <div style="overflow:auto;margin-top:8px"><table><thead><tr><th>Tanggal</th><th>Pembeli</th><th>Paket</th><th>Kode perangkat</th><th></th></tr></thead><tbody id="hist"></tbody></table></div>
+    <p class="small" id="histEmpty">Belum ada.</p>
+  </div>
+
+  <div class="card">
+    <h2>Kunci publik (untuk aplikasi)</h2>
+    <p class="small">Tempel teks ini ke file <b>lisensi/kunci-publik.txt</b> di repo (baris paling bawah), lalu commit &amp; push. Kunci publik bukan rahasia.</p>
+    <div class="out mono" id="pub"></div>
+    <div class="row" style="margin-top:8px"><button id="btnPub">Salin kunci publik</button></div>
+  </div>
+
+  <div class="card">
+    <details><summary>Pengaturan kunci</summary>
+      <div style="margin-top:12px">
+        <label>Kata sandi untuk file cadangan baru<input id="pw3" type="password" autocomplete="new-password"></label>
+        <div class="row"><button id="btnBackup">Unduh cadangan kunci lagi</button><button class="danger" id="btnForget">Hapus kunci dari browser ini</button></div>
+        <p class="err" id="keyErr" hidden></p>
+      </div>
+    </details>
+  </div>
+</section>
+<p class="small">Format kode: ECDSA P-256. Kode aktivasi hanya berlaku di perangkat yang kodenya dimasukkan, dan tidak bisa dibuat tanpa kunci rahasia ini.</p>
+</main>
+<script type="module">
+/*__CORE__*/
+
+const $ = id => document.getElementById(id);
+const K_KEY = 'kasirdbl-lisensi-kunci', K_HIST = 'kasirdbl-lisensi-riwayat', K_BAK = 'kasirdbl-lisensi-cadangan-ok';
+let priv = null, pubB64 = '', last = null;
+const show = (id, msg) => { const e = $(id); e.textContent = msg; e.hidden = !msg; };
+const store = { get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, set: (k, v) => localStorage.setItem(k, JSON.stringify(v)), del: k => localStorage.removeItem(k) };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const today = () => new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function download(name, text, type = 'application/json') { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+const waNumber = s => { let d = String(s || '').replace(/\D/g, ''); if (d.startsWith('0')) d = '62' + d.slice(1); return d; };
+
+async function backupFile(password) {
+  const jwk = await exportPrivateJwk(priv);
+  const file = await encryptBackup({ jwk, pub: pubB64, created: new Date().toISOString() }, password);
+  download('KASIRDBL-kunci-lisensi-CADANGAN.json', JSON.stringify(file, null, 1));
+}
+
+async function boot() {
+  try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); } catch { $('noStorage').hidden = false; return; }
+  if (!globalThis.crypto?.subtle) { $('noStorage').textContent = 'Browser ini tidak mendukung WebCrypto. Pakai Chrome/Edge versi terbaru.'; $('noStorage').hidden = false; return; }
+  $('plan').innerHTML = Object.entries(PLANS).map(([k, p]) => `<option value="${k}"${k === '2' ? ' selected' : ''}>${esc(p.label)}</option>`).join('');
+  const saved = store.get(K_KEY);
+  if (saved?.jwk) { priv = await importPrivateJwk(saved.jwk); pubB64 = await publicFromPrivateJwk(saved.jwk); openMain(); }
+  else { $('setup').hidden = false; }
+}
+function openMain() {
+  $('setup').hidden = true; $('main').hidden = false;
+  $('pub').textContent = pubB64;
+  $('backupWarn').hidden = !!store.get(K_BAK);
+  renderHist();
+}
+
+$('btnNew').onclick = async () => {
+  const a = $('pw1').value, b = $('pw2').value;
+  if (a.length < 10) return show('setupErr', 'Kata sandi minimal 10 karakter.');
+  if (a !== b) return show('setupErr', 'Kedua kata sandi tidak sama.');
+  if (store.get(K_KEY) && !confirm('Sudah ada kunci di browser ini. Ganti dengan kunci baru?')) return;
+  show('setupErr', '');
+  const k = await generateKeys();
+  const jwk = await exportPrivateJwk(k.privateKey);
+  priv = await importPrivateJwk(jwk); pubB64 = await publicKeyB64(k.publicKey);
+  store.set(K_KEY, { jwk, created: new Date().toISOString() }); store.del(K_BAK);
+  await backupFile(a);
+  $('pw1').value = $('pw2').value = '';
+  openMain();
+};
+$('btnRestore').onclick = async () => {
+  const f = $('restoreFile').files[0];
+  if (!f) return show('restoreErr', 'Pilih file cadangan dulu.');
+  try {
+    const data = await decryptBackup(JSON.parse(await f.text()), $('restorePw').value);
+    priv = await importPrivateJwk(data.jwk); pubB64 = await publicFromPrivateJwk(data.jwk);
+    store.set(K_KEY, { jwk: data.jwk, created: data.created }); store.set(K_BAK, true);
+    show('restoreErr', ''); openMain();
+  } catch (e) { show('restoreErr', e.message || 'Gagal memulihkan.'); }
+};
+$('btnBackedUp').onclick = () => { store.set(K_BAK, true); $('backupWarn').hidden = true; };
+$('dev').oninput = () => show('makeErr', '');
+
+$('btnMake').onclick = async () => {
+  const dev = $('dev').value.trim(), plan = Number($('plan').value);
+  if (!dev) return show('makeErr', 'Isi kode perangkat dari pembeli.');
+  $('btnMake').disabled = true;
+  try {
+    await parseDeviceCode(dev);
+    const code = await makeActivationCode(priv, dev, plan);
+    const v = await verifyActivationCode(pubB64, dev, code);
+    if (!v || v.plan !== plan) throw new Error('Swa-uji gagal: kode tidak lolos pemeriksaan. Jangan dikirim.');
+    last = { date: today(), name: $('nm').value.trim(), wa: $('wa').value.trim(), plan, dev: group(normalize(dev)), code, memo: $('memo').value.trim() };
+    const h = store.get(K_HIST) || []; h.unshift(last); store.set(K_HIST, h);
+    $('code').textContent = code; $('selfTest').textContent = `Lolos swa-uji · paket ${PLANS[plan].name} · perangkat ${last.dev}`;
+    $('result').hidden = false; show('makeErr', ''); renderHist();
+  } catch (e) { show('makeErr', e.message); $('result').hidden = true; }
+  finally { $('btnMake').disabled = false; }
+};
+async function copy(text, btn) { try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = 'Tersalin ✓'; setTimeout(() => (btn.textContent = t), 1500); } catch { prompt('Salin teks ini:', text); } }
+$('btnCopy').onclick = e => copy($('code').textContent, e.target);
+$('btnPub').onclick = e => copy(pubB64, e.target);
+$('btnWa').onclick = () => {
+  if (!last) return;
+  const msg = `Kode aktivasi KASIR DBL${last.name ? ' untuk ' + last.name : ''} (paket ${PLANS[last.plan].label}):\n\n${last.code}\n\nCara: buka aplikasi KASIR DBL → tempel kode di kolom "Tempel kode aktivasi" → Aktifkan. Kode hanya berlaku di HP dengan kode perangkat ${last.dev}.`;
+  window.open(`https://wa.me/${waNumber(last.wa)}?text=${encodeURIComponent(msg)}`, '_blank');
+};
+function renderHist() {
+  const h = store.get(K_HIST) || [];
+  $('histEmpty').hidden = h.length > 0;
+  $('hist').innerHTML = h.map((x, i) => `<tr><td>${esc(x.date)}</td><td>${esc(x.name || '-')}${x.memo ? `<div class="small">${esc(x.memo)}</div>` : ''}</td><td>${esc(PLANS[x.plan]?.name || x.plan)}</td><td class="mono">${esc(x.dev)}</td><td><button data-i="${i}">Salin kode</button></td></tr>`).join('');
+  $('hist').onclick = e => { const b = e.target.closest('[data-i]'); if (b) copy(h[Number(b.dataset.i)].code, b); };
+}
+$('btnCsv').onclick = () => {
+  const h = store.get(K_HIST) || [], q = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
+  download('riwayat-lisensi-kasir-dbl.csv', '﻿' + ['Tanggal,Pembeli,WhatsApp,Paket,Kode perangkat,Catatan,Kode aktivasi', ...h.map(x => [x.date, x.name, x.wa, PLANS[x.plan]?.name, x.dev, x.memo, x.code].map(q).join(','))].join('\n'), 'text/csv');
+};
+$('btnBackup').onclick = async () => {
+  const pw = $('pw3').value;
+  if (pw.length < 10) return show('keyErr', 'Kata sandi minimal 10 karakter.');
+  show('keyErr', ''); await backupFile(pw); $('pw3').value = ''; store.set(K_BAK, true); $('backupWarn').hidden = true;
+};
+$('btnForget').onclick = () => {
+  if (!confirm('Hapus kunci rahasia dari browser ini? Pastikan file cadangan & kata sandinya ada, karena tanpa itu Anda tidak bisa membuat kode aktivasi lagi.')) return;
+  if (prompt('Ketik HAPUS untuk melanjutkan') !== 'HAPUS') return;
+  store.del(K_KEY); store.del(K_BAK); location.reload();
+};
+boot();
+</script>
+</body>
+</html>

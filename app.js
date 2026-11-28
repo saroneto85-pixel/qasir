@@ -1,8 +1,11 @@
 import { initDatabase, all, put, del, isNative } from './db.js';
 import './sync-ui.js'; // dimuat lebih dulu: memasang gerbang sinkronisasi sebelum ada penulisan
 import { guard as permGuard, applyPerms } from './permissions.js';
+import { licenseGuard, openWa, licenseState, DEV_NAME } from './license.js';
 import { APP_VERSION } from './version.js';
 for(const id of ['appVersion','appVersionSettings']){const el=document.getElementById(id);if(el)el.textContent='KASIR v'+APP_VERSION}
+{const w=document.getElementById('aboutAskCode');if(w)w.onclick=()=>{const L=licenseState()||{},st=(document.getElementById('storeLabel')?.textContent||'').trim();openWa(`Halo ${DEV_NAME}, saya ${L.valid?'ingin meningkatkan paket':'ingin aktivasi'} KASIR DBL.\nKode perangkat: ${L.deviceCode||'-'}${st?`\nNama toko: ${st}`:''}${L.planName?`\nPaket sekarang: ${L.planName}`:''}\nVersi aplikasi: ${APP_VERSION}`)}}
+{const v=document.getElementById('aboutVersion');if(v)v.textContent='v'+APP_VERSION;const c=document.getElementById('aboutCopyEmail');if(c)c.onclick=async()=>{const e='saroneto85@gmail.com';try{await navigator.clipboard.writeText(e);window.toast?.('Email pengembang disalin')}catch{window.toast?.(e)}}}
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { App } from '@capacitor/app';
@@ -27,7 +30,8 @@ async function loadSettings(){const ss=await all('settings');let s=ss.find(x=>x.
 async function refreshAll(){await renderDashboard();await renderProducts();await renderCashiers();await renderPOS();await renderHistory();await renderExpenses();await renderReports();await renderEmployees();await renderCategoryMaster();await renderAssets();await renderDebts();await window.renderInventory?.();await window.bahanRefresh?.();await window.renderBookkeeping?.();await loadSettings()}
 function showPage(id){return showPageAsync(id)}
 const PAGE_REASON={settings:'membuka pengaturan',assets:'membuka aset & penyusutan',debts:'membuka hutang & piutang',neraca:'membuka neraca awal',pembukuan:'membuka pembukuan',evaluasi:'membuka evaluasi usaha',hpp:'membuka HPP menu'};
-async function showPageAsync(id){if(!permGuard('page:'+id,'Menu ini'))return;if(PAGE_REASON[id]&&!await requirePin(PAGE_REASON[id]))return;activatePage(id)}
+async function showPageAsync(id){if(!licenseGuard(id))return;if(!permGuard('page:'+id,'Menu ini'))return;if(PAGE_REASON[id]&&!await requirePin(PAGE_REASON[id]))return;activatePage(id)}
+window.__activatePage=id=>activatePage(id);
 function activatePage(id){document.body.dataset.page=id;document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));window.scrollTo?.(0,0);if(id==='dashboard')renderDashboard();if(id==='reports')renderReports();if(id==='customers')renderCustomers();if(id==='expenses')renderExpenses();if(id==='inventory')window.renderInventory?.();if(id==='bahan')window.renderBahan?.();if(id==='hpp')window.renderHpp?.();if(id==='assets')renderAssets();if(id==='debts')renderDebts();if(id==='settings'){renderCashiers();window.loadReceiptSettings?.()}if(['neraca','pembukuan','evaluasi'].includes(id))window.renderBookkeeping?.(id)}
 document.querySelectorAll('.nav').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 function toast(s){let t=$('toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}

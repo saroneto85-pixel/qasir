@@ -422,3 +422,43 @@ body.no-cost .perm-cost,body.no-txEdit .perm-txEdit,body.no-data .perm-data,body
 .perm-presets{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 .perm-presets button{flex:1 1 auto}
 .sync-dev .perm-sum{display:block;color:var(--muted,#71806f);font-size:12px;margin-top:2px}
+
+/* ---- Lisensi (2.14) ---- */
+.lic-overlay{position:fixed;inset:0;z-index:200;background:var(--bg,#f2f6f3);overflow:auto;padding:max(18px,env(safe-area-inset-top)) 16px 28px}
+.lic-overlay[hidden]{display:none!important}
+body.lic-open{overflow:hidden}
+body.lic-open .bottom-transaction{display:none!important}
+.lic-head{display:flex;align-items:center;gap:12px;max-width:520px;margin:6px auto 14px}
+.lic-head img{width:52px;height:52px;border-radius:50%;object-fit:contain;background:#fff;border:2px solid #e9c46a;padding:3px}
+.lic-head h2{margin:0;font-size:20px}.lic-head p{margin:2px 0 0;color:var(--muted,#5b6b62);font-size:14px}
+.lic-x{margin-left:auto;border:0;background:transparent;font-size:28px;line-height:1;padding:4px 8px;cursor:pointer;color:inherit}
+.lic-card{max-width:520px;margin:0 auto 14px;background:#fff;border:1px solid var(--line,#dfe7e1);border-radius:16px;padding:16px}
+.lic-card.lic-bad{border-color:#e3b4b4;background:#fff7f7}
+.lic-step{display:flex;align-items:center;gap:8px;font-weight:600;margin:4px 0 8px}
+.lic-step span{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--primary,#1f6b4f);color:#fff;font-size:13px}
+.lic-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:24px;letter-spacing:.06em;text-align:center;padding:12px;border-radius:12px;background:#f3f7f4;border:1px dashed #9fcbb0;user-select:all;word-break:break-all}
+.lic-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 16px}
+.lic-card textarea{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;letter-spacing:.03em;text-transform:uppercase;box-sizing:border-box}
+.lic-err{color:#b42318;background:#fff1f0;border-radius:10px;padding:8px 10px;margin:8px 0 0;font-size:14px}
+.lic-go{width:100%;margin:12px 0 8px;min-height:48px;font-size:16px}
+.lic-join .outline{width:100%}
+.lic-info code{font-size:13px;letter-spacing:.04em}
+.lic-join-bar{background:#fff8e6;border:1px solid #f0d58c;border-radius:14px;padding:12px 14px;margin:0 0 14px}
+.lic-join-bar p{margin:0 0 8px}
+body.lic-joining #settings>*:not(#syncPanel):not(#licJoinBar){display:none!important}
+body.lic-joining .bottom-transaction,body.lic-joining #backBtn{display:none!important}
+
+/* ---- Tentang aplikasi ---- */
+.about-body{display:flex;gap:14px;align-items:flex-start}
+.about-logo{width:56px;height:56px;border-radius:50%;object-fit:contain;background:#fff;border:2px solid #e9c46a;padding:3px;flex:0 0 56px}
+.about-name{margin:0 0 4px;font-size:16px}
+.about-dev{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:10px 0;font-size:14px}
+.about-dev dt{color:var(--muted,#5b6b62)}.about-dev dd{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;min-width:0}
+.about-dev a{color:var(--primary,#1f6b4f);font-weight:600;white-space:nowrap}
+.lic-dev{max-width:520px;margin:4px auto 0;text-align:center;font-size:13px;color:var(--muted,#5b6b62)}
+.lic-dev a{color:var(--primary,#1f6b4f)}
+
+.lic-wa{width:100%;min-height:48px;font-size:16px;background:#25d366;border-color:#1ebe5a;color:#fff}
+.lic-wa-note{text-align:center;margin:6px 0 4px}
+.about-wa{width:100%;margin:6px 0 8px;background:#25d366;border-color:#1ebe5a;color:#fff}
+.lic-dev a{white-space:nowrap}
